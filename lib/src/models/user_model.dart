@@ -1,5 +1,7 @@
 
-class AppUser {
+import 'package:equatable/equatable.dart';
+
+class AppUser extends Equatable {
   final String uid;
   final String? displayName;
   final String? email;
@@ -11,7 +13,7 @@ class AppUser {
   final double rating;
   final DateTime createdAt;
 
-  AppUser({
+  const AppUser({
     required this.uid,
     this.displayName,
     this.email,
@@ -53,4 +55,18 @@ class AppUser {
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
     );
   }
+
+  @override
+  List<Object?> get props => [
+        uid,
+        displayName,
+        email,
+        photoURL,
+        role,
+        collegeId,
+        city,
+        isWriterApproved,
+        rating,
+        createdAt,
+      ];
 }

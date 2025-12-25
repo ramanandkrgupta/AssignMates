@@ -9,6 +9,7 @@ class AssignMatesApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'AssignMates',
       theme: lightTheme,
       darkTheme: darkTheme,

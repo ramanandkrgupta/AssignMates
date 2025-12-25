@@ -18,7 +18,25 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final PageController _pageController = PageController();
+  late final TextEditingController _collegeController;
+  late final TextEditingController _cityController;
   int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    final state = ref.read(onboardingStateProvider);
+    _collegeController = TextEditingController(text: state.collegeId);
+    _cityController = TextEditingController(text: state.city);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _collegeController.dispose();
+    _cityController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,8 +76,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Widget _buildCollegeStep(OnboardingState state) {
-    final TextEditingController collegeController = TextEditingController(text: state.collegeId);
-    
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -68,7 +84,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           const Text('Select your College', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 20),
           TextField(
-            controller: collegeController, // TODO: Use Autocomplete/Dropdown with real data
+            controller: _collegeController, // TODO: Use Autocomplete/Dropdown with real data
             decoration: const InputDecoration(
               labelText: 'College Name',
               border: OutlineInputBorder(),
@@ -93,7 +109,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Widget _buildLocationStep(OnboardingState state) {
-     final TextEditingController cityController = TextEditingController(text: state.city);
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -102,7 +117,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           const Text('Where are you based?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 20),
           TextField(
-            controller: cityController,
+            controller: _cityController,
             decoration: const InputDecoration(
               labelText: 'City',
               border: OutlineInputBorder(),

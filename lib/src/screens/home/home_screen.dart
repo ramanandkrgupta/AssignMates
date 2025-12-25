@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/auth_provider.dart';
 
+import '../student/create_request_screen.dart';
+
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -42,6 +44,16 @@ class HomeScreen extends ConsumerWidget {
               const CircularProgressIndicator(),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const CreateRequestScreen()),
+          );
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('New Request'),
       ),
     );
   }

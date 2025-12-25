@@ -44,4 +44,15 @@ class FirestoreService {
       return null;
     });
   }
+  Stream<List<RequestModel>> getStudentRequests(String studentId) {
+    return _db
+        .collection('requests')
+        .where('studentId', isEqualTo: studentId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => RequestModel.fromMap(doc.data())).toList();
+    });
+  }
 }
+

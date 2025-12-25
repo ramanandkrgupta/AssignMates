@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "784246474278",
+    "project_id": "assignmates-app",
+    "storage_bucket": "assignmates-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:784246474278:android:77b43fe833738a221548e7",
+        "android_client_info": {
+          "package_name": "in.notesmates.assignmates"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "784246474278-2nobfrgvqf66j2rlucmgctnm4r3trkv9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAnNHHUdaZ1kPoqDf-ScjHhrSpARovdnpI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "784246474278-2nobfrgvqf66j2rlucmgctnm4r3trkv9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

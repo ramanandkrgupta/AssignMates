@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'src/themes/light.dart';
 import 'src/themes/dark.dart';
 import 'src/screens/auth/splash_screen.dart';
+import 'src/screens/notification_handler.dart';
 
 class AssignMatesApp extends StatelessWidget {
   const AssignMatesApp({super.key});
@@ -14,7 +15,7 @@ class AssignMatesApp extends StatelessWidget {
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,
-      home: const SplashScreen(),
+      home: const NotificationHandler(child: SplashScreen()),
     );
   }
 }

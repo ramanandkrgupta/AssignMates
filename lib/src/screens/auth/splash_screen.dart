@@ -6,6 +6,8 @@ import 'login_screen.dart';
 import 'onboarding_screen.dart';
 import 'profile_setup_screen.dart';
 import '../home/home_screen.dart';
+import '../admin/admin_dashboard_screen.dart';
+import '../writer/writer_dashboard_screen.dart';
 
 final onboardingSeenProvider = FutureProvider<bool>((ref) async {
   final prefs = await SharedPreferences.getInstance();
@@ -23,6 +25,12 @@ class SplashScreen extends ConsumerWidget {
     return authState.when(
       data: (user) {
         if (user != null) {
+          if (user.role == 'admin') {
+            return const AdminDashboardScreen();
+          }
+          if (user.role == 'writer') {
+            return const WriterDashboardScreen();
+          }
           if (user.collegeId == null || user.collegeId!.isEmpty) {
             return const ProfileSetupScreen();
           }

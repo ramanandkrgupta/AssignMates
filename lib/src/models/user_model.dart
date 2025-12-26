@@ -8,10 +8,8 @@ class AppUser extends Equatable {
   final String? photoURL;
   final String role; // 'student', 'writer', 'admin'
   final String? collegeId;
-  final String? city;
-  final bool isWriterApproved;
-  final double rating;
-  final DateTime createdAt;
+  final String? phoneNumber;
+  final Map<String, dynamic>? location; // {lat: double, lng: double, address: String}
 
   const AppUser({
     required this.uid,
@@ -21,6 +19,8 @@ class AppUser extends Equatable {
     this.role = 'student',
     this.collegeId,
     this.city,
+    this.phoneNumber,
+    this.location,
     this.isWriterApproved = false,
     this.rating = 0.0,
     required this.createdAt,
@@ -35,6 +35,8 @@ class AppUser extends Equatable {
       'role': role,
       'collegeId': collegeId,
       'city': city,
+      'phoneNumber': phoneNumber,
+      'location': location,
       'isWriterApproved': isWriterApproved,
       'rating': rating,
       'createdAt': createdAt.millisecondsSinceEpoch,
@@ -50,6 +52,8 @@ class AppUser extends Equatable {
       role: map['role'] ?? 'student',
       collegeId: map['collegeId'],
       city: map['city'],
+      phoneNumber: map['phoneNumber'],
+      location: map['location'] != null ? Map<String, dynamic>.from(map['location']) : null,
       isWriterApproved: map['isWriterApproved'] ?? false,
       rating: map['rating']?.toDouble() ?? 0.0,
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
@@ -65,6 +69,8 @@ class AppUser extends Equatable {
         role,
         collegeId,
         city,
+         phoneNumber,
+        location,
         isWriterApproved,
         rating,
         createdAt,

@@ -54,5 +54,26 @@ class FirestoreService {
       return snapshot.docs.map((doc) => RequestModel.fromMap(doc.data())).toList();
     });
   }
+
+  Future<List<AppUser>> getAllUsers() async {
+    final snapshot = await _db.collection('users').get();
+    return snapshot.docs.map((doc) => AppUser.fromMap(doc.data())).toList();
+  }
+
+  Future<void> updateUserRole(String uid, String role) async {
+    await _db.collection('users').doc(uid).update({'role': role});
+  }
+  Future<void> updateRequestStatus(String requestId, String status, {Map<String, dynamic>? additionalData}) async {
+    final data = <String, dynamic>{'status': status};
+    if (additionalData != null) {
+      data.addAll(additionalData);
+    }
+    await _db.collection('requests').doc(requestId).update(data);
+  }
+
+  Future<List<RequestModel>> getAllRequests() async {
+     final snapshot = await _db.collection('requests').orderBy('createdAt', descending: true).get();
+     return snapshot.docs.map((doc) => RequestModel.fromMap(doc.data())).toList();
+  }
 }
 

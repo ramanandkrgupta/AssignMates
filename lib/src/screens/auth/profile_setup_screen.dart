@@ -18,6 +18,7 @@ class ProfileSetupScreen extends ConsumerStatefulWidget {
 
 class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   final PageController _pageController = PageController();
+
   late final TextEditingController _collegeController;
   late final TextEditingController _cityController;
   int _currentPage = 0;
@@ -116,6 +117,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
           const SizedBox(height: 32),
           TextField(
             controller: _collegeController,
+            style: const TextStyle(color: Colors.black), // Make input text black
             decoration: InputDecoration(
               labelText: 'College Name',
               hintText: 'Enter college name',
@@ -136,7 +138,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
           const SizedBox(height: 10),
           TextButton(
             onPressed: () {},
-            child: const Text("My college isn't listed", style: TextStyle(color: Colors.grey)),
+            child: const Text("My college isn't listed", style: TextStyle(color: Colors.black)),
           ),
           const Spacer(),
           ElevatedButton(
@@ -173,6 +175,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
           const SizedBox(height: 32),
           TextField(
             controller: _cityController,
+            style: const TextStyle(color: Colors.black), // Make input text black
             decoration: InputDecoration(
               labelText: 'City',
               hintText: 'Enter your city',
@@ -259,8 +262,8 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: SwitchListTile(
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black)),
+        subtitle: Text(subtitle, style: const TextStyle(color: Colors.black, fontSize: 13)),
         value: value,
         activeColor: primaryOrange,
         onChanged: onChanged,

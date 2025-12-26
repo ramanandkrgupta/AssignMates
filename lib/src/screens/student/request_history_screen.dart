@@ -5,7 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../models/request_model.dart';
-import '../../themes/dark.dart'; // Import for colors
+
 
 class RequestHistoryScreen extends ConsumerWidget {
   const RequestHistoryScreen({super.key});
@@ -16,8 +16,12 @@ class RequestHistoryScreen extends ConsumerWidget {
     final firestoreService = ref.watch(firestoreServiceProvider);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('Request History'),
+        title: const Text('Request History', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
       ),
       body: user == null
           ? const Center(child: Text('Please login to view history'))
@@ -39,12 +43,12 @@ class RequestHistoryScreen extends ConsumerWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.history_toggle_off, size: 64, color: Colors.white.withOpacity(0.5)),
+                        Icon(Icons.history_toggle_off, size: 64, color: Colors.grey.withOpacity(0.5)),
                         const SizedBox(height: 16),
                         Text(
                           'No requests found',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                color: Colors.white.withOpacity(0.5),
+                                color: Colors.grey,
                               ),
                         ),
                       ],
@@ -72,17 +76,28 @@ class RequestHistoryScreen extends ConsumerWidget {
     Color statusColor;
     switch (request.status.toLowerCase()) {
       case 'completed':
-        statusColor = AppColors.cyberBlue;
+        statusColor = Colors.blue;
         break;
       case 'assigned':
-        statusColor = AppColors.electricViolet;
+        statusColor = Colors.purple;
         break;
       default:
-        statusColor = Colors.orangeAccent;
+        statusColor = const Color(0xFFFFAF00); // Primary Orange
     }
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -96,6 +111,7 @@ class RequestHistoryScreen extends ConsumerWidget {
                     request.title,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: Colors.black,
                         ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -104,9 +120,9 @@ class RequestHistoryScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.2),
+                    color: statusColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: statusColor.withOpacity(0.5)),
+                    border: Border.all(color: statusColor.withOpacity(0.3)),
                   ),
                   child: Text(
                     request.status.toUpperCase(),
@@ -125,7 +141,7 @@ class RequestHistoryScreen extends ConsumerWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.white70,
+                    color: Colors.grey[700],
                   ),
             ),
             const SizedBox(height: 12),
@@ -134,18 +150,18 @@ class RequestHistoryScreen extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.calendar_today, size: 14, color: Colors.white54),
+                    const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
                     const SizedBox(width: 4),
                     Text(
                       DateFormat('MMM d, y').format(request.deadline),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white54),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
                     ),
                   ],
                 ),
                 Text(
                   '₹${request.budget.toStringAsFixed(0)}',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.cyberBlue,
+                        color: Colors.black,
                         fontWeight: FontWeight.bold,
                       ),
                 ),

@@ -1,225 +1,230 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/glass_card.dart';
-import '../../themes/dark.dart';
-
-// Screens
+import '../../widgets/geometric_background.dart';
 import '../student/create_request_screen.dart';
 import '../student/request_history_screen.dart';
 import '../student/profile_screen.dart';
 
-class HomeScreen extends ConsumerWidget {
+import '../student/support_screen.dart';
+
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final userAsync = ref.watch(appUserProvider);
-    final user = userAsync.value;
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  int _selectedIndex = 0;
+
+  static const Color primaryOrange = Color(0xFFFFAF00);
+  static const Color darkBlack = Color(0xFF1A1A1A);
+
+  @override
+  Widget build(BuildContext context) {
+    // List of screens for the bottom navigation
+    final List<Widget> screens = [
+      const _HomeContent(),       // Home Dashboard
+      const RequestHistoryScreen(),
+      const SupportScreen(),
+      const ProfileScreen(),
+    ];
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: Text(
-          'AssignMates',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () {},
-          ),
-          const SizedBox(width: 8),
-        ],
+      extendBody: true,
+      body: GeometricBackground(
+        child: screens[_selectedIndex],
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          // Subtle gradient background
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.eerieBlack,
-              Color(0xFF232323),
-              AppColors.voidBlack,
-            ],
+      bottomNavigationBar: NavigationBarTheme(
+        data: NavigationBarThemeData(
+          labelTextStyle: MaterialStateProperty.all(
+            GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white),
           ),
+          iconTheme: MaterialStateProperty.resolveWith((states) {
+             if (states.contains(MaterialState.selected)) {
+               return const IconThemeData(size: 28, color: Colors.black); // Selected icon color (on orange pill)
+             }
+             return const IconThemeData(size: 28, color: Colors.white); // Unselected icon color
+          }),
         ),
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 100), // Spacing for AppBar
+        child: NavigationBar(
+          height: 80, // Taller navigation bar
+          selectedIndex: _selectedIndex,
+          onDestinationSelected: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+          backgroundColor: Colors.black, // Dark background
+          indicatorColor: primaryOrange, // Orange pill
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home_filled),
+              label: 'Home',
             ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (user != null)
-                      Text(
-                        'Hello, ${user.displayName?.split(' ')[0] ?? 'Student'}!',
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                      ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.2),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Ready to crush your assignments?',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: Colors.white54,
-                          ),
-                    ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2),
-                    const SizedBox(height: 32),
-                  ],
-                ),
-              ),
+            NavigationDestination(
+              icon: Icon(Icons.history_outlined),
+              selectedIcon: Icon(Icons.history),
+              label: 'History',
             ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Hero(
-                  tag: 'main-action-card',
-                  child: GlassCard(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const CreateRequestScreen()),
-                      );
-                    },
-                    color: AppColors.electricViolet.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(24),
-                    padding: const EdgeInsets.all(24),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Need Help?',
-                              style: GoogleFonts.outfit(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.electricViolet,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Post a new assignment\nrequest now.',
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                          ],
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: const BoxDecoration(
-                            color: AppColors.electricViolet,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.add, color: Colors.black, size: 32),
-                        ),
-                      ],
-                    ),
-                  ).animate().scale(delay: 300.ms, curve: Curves.easeOutBack),
-                ),
-              ),
+             NavigationDestination(
+              icon: Icon(Icons.headset_mic_outlined),
+              selectedIcon: Icon(Icons.headset_mic),
+              label: 'Support',
             ),
-            SliverPadding(
-              padding: const EdgeInsets.all(20),
-              sliver: SliverGrid.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                children: [
-                   _buildDashboardItem(
-                    context,
-                    title: 'History',
-                    icon: Icons.history,
-                    color: AppColors.cyberBlue,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const RequestHistoryScreen()),
-                    ),
-                    delay: 400,
-                  ),
-                   _buildDashboardItem(
-                    context,
-                    title: 'Profile',
-                    icon: Icons.person_outline,
-                    color: Colors.orangeAccent,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                    ),
-                    delay: 500,
-                  ),
-                  _buildDashboardItem(
-                    context,
-                    title: 'Messages',
-                    icon: Icons.chat_bubble_outline,
-                    color: Colors.pinkAccent,
-                    onTap: () {
-                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Coming Soon!')),
-                      );
-                    },
-                    delay: 600,
-                  ),
-                   _buildDashboardItem(
-                    context,
-                    title: 'Support',
-                    icon: Icons.headset_mic_outlined,
-                    color: Colors.greenAccent,
-                    onTap: () {},
-                    delay: 700,
-                  ),
-                ],
-              ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Profile',
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildDashboardItem(
-    BuildContext context, {
-    required String title,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-    required int delay,
-  }) {
-    return GlassCard(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              shape: BoxShape.circle,
+class _HomeContent extends ConsumerWidget {
+  const _HomeContent();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userAsync = ref.watch(appUserProvider);
+    final user = userAsync.value;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                 Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                     Text(
+                      'Hello,',
+                      style: GoogleFonts.outfit(
+                        fontSize: 20,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    Text(
+                      user?.displayName?.split(' ')[0] ?? 'Student',
+                      style: GoogleFonts.outfit(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                 ),
+                 CircleAvatar(
+                   radius: 24,
+                   backgroundColor: Colors.grey[200],
+                   backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
+                   child: user?.photoURL == null ? const Icon(Icons.person, color: Colors.grey) : null,
+                 ),
+              ],
             ),
-            child: Icon(icon, color: color, size: 32),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
+            const SizedBox(height: 48),
+
+            // Hero Text from Image
+            Text(
+              'Secure.',
+              style: GoogleFonts.outfit(
+                fontSize: 48,
+                fontWeight: FontWeight.w900,
+                color: Colors.black,
+                height: 1.1,
+              ),
             ),
-          ),
-        ],
+            Text(
+              'Anonymous.',
+              style: GoogleFonts.outfit(
+                fontSize: 48,
+                fontWeight: FontWeight.w900,
+                color: Colors.black,
+                height: 1.1,
+              ),
+            ),
+            Text(
+              'Private.',
+              style: GoogleFonts.outfit(
+                fontSize: 48,
+                fontWeight: FontWeight.w900,
+                color: Colors.black, // Keeping black per request "make them black" in general, or matching image
+                height: 1.1,
+              ),
+            ),
+
+            const Spacer(),
+
+            // Main Action Card (simplified to just a button or small card)
+             Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   Text(
+                    'Need Assignment Help?',
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Post a request and get matched with a writer instantly.',
+                    style: GoogleFonts.outfit(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                         Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const CreateRequestScreen()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFAF00),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        'Get Started',
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
-    ).animate().fadeIn(delay: delay.ms).slideY(begin: 0.2);
+    );
   }
 }

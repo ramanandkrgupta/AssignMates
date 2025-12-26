@@ -4,7 +4,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/user_model.dart';
 import '../../services/firestore_service.dart';
-import '../../widgets/glass_card.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -39,7 +41,10 @@ class ProfileScreen extends ConsumerWidget {
         ),
         iconTheme: const IconThemeData(color: Colors.black),
         actions: [
-          IconButton(icon: const Icon(Icons.settings, color: Colors.black), onPressed: () {}),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.black),
+            onPressed: () => _showLogoutDialog(context, ref),
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -93,7 +98,7 @@ class ProfileScreen extends ConsumerWidget {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5)),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 5)),
                 ],
               ),
               child: Row(
@@ -174,7 +179,7 @@ class ProfileScreen extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.red.withOpacity(0.2)),
+                    side: BorderSide(color: Colors.red.withValues(alpha: 0.2)),
                   ),
                 ),
               ),
@@ -192,13 +197,13 @@ class ProfileScreen extends ConsumerWidget {
          color: Colors.white,
          borderRadius: BorderRadius.circular(12),
          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 5, offset: const Offset(0, 2)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 5, offset: const Offset(0, 2)),
          ],
       ),
       child: ListTile(
         leading: Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: const Color(0xFFFFAF00).withOpacity(0.1), shape: BoxShape.circle),
+          decoration: BoxDecoration(color: const Color(0xFFFFAF00).withValues(alpha: 0.1), shape: BoxShape.circle),
           child: Icon(icon, color: const Color(0xFFFFAF00), size: 20),
         ),
         title: Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
@@ -211,54 +216,124 @@ class ProfileScreen extends ConsumerWidget {
 
   Future<void> _showEditDialog(BuildContext context, WidgetRef ref, AppUser user, String title, String currentValue, String fieldKey, {bool isLocation = false}) async {
     final controller = TextEditingController(text: currentValue == 'Add $title' ? '' : currentValue);
+    bool isLoading = false;
 
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Update $title'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isLocation) ...[
-                ElevatedButton.icon(
-                  onPressed: () async {
-                     // Reuse location logic or simple placeholder for now as full logic is in CreateRequest
-                     // ideally we move location logic to a service.
-                     // For now, let user type or we can copy-paste the geolocator logic if needed.
-                     // But strictly user asked for "update from there too", implying manual or auto.
-                     Navigator.pop(context);
-                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please use the Create Request page to auto-detect GPS location for accuracy.')));
-                  },
-                  icon: const Icon(Icons.my_location),
-                  label: const Text('Detect GPS Location'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Text('Update $title'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isLocation) ...[
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                         setDialogState(() => isLoading = true);
+                         try {
+                            bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+                            if (!serviceEnabled) {
+                               serviceEnabled = await Geolocator.openLocationSettings();
+                               if (!serviceEnabled) throw Exception('Please enable Location Services (GPS) on your device.');
+                            }
+
+                            var permission = await Geolocator.checkPermission();
+                            if (permission == LocationPermission.denied) {
+                               permission = await Geolocator.requestPermission();
+                               if (permission == LocationPermission.denied) throw Exception('Location permissions are denied.');
+                            }
+                            if (permission == LocationPermission.deniedForever) {
+                               throw Exception('Location permissions are permanently denied. Please enable them in App Settings.');
+                            }
+
+                            final position = await Geolocator.getCurrentPosition();
+                            final placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+                            if (placemarks.isNotEmpty) {
+                               final place = placemarks.first;
+                               final fetched = '${place.street}, ${place.subLocality}, ${place.locality}, ${place.postalCode}';
+                               controller.text = fetched;
+                            }
+                         } catch (e) {
+                            debugPrint('GPS Error: $e');
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('GPS Error: $e'), backgroundColor: Colors.red));
+                            }
+                         } finally {
+                            if (context.mounted) {
+                               setDialogState(() => isLoading = false);
+                            }
+                         }
+                      },
+                      icon: isLoading
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.my_location),
+                      label: Text(isLoading ? 'Detecting...' : 'Detect GPS Location'),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text('OR', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                     const SizedBox(height: 10),
+                ],
+                TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    hintText: 'Enter $title',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  maxLines: isLocation ? 3 : 1,
+                  keyboardType: isLocation ? TextInputType.multiline : TextInputType.phone,
                 ),
-                const SizedBox(height: 10),
-                const Text('OR', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                 const SizedBox(height: 10),
-            ],
-            TextField(
-              controller: controller,
-              decoration: InputDecoration(
-                hintText: 'Enter $title',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              maxLines: isLocation ? 3 : 1,
-              keyboardType: isLocation ? TextInputType.multiline : TextInputType.phone,
+              ],
             ),
-          ],
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: () async {
+                  if (controller.text.isNotEmpty) {
+                     await ref.read(firestoreServiceProvider).updateUser(user.uid, {fieldKey: controller.text});
+                     if (context.mounted) Navigator.pop(context);
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFAF00), foregroundColor: Colors.white),
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        }
+      ),
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+           children: [
+             const Icon(Icons.logout, color: Colors.red),
+             const SizedBox(width: 10),
+             Text('Sign Out', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+           ],
         ),
+        content: Text('Do you really want to logout?', style: GoogleFonts.outfit(fontSize: 16)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('No', style: GoogleFonts.outfit(color: Colors.grey, fontWeight: FontWeight.bold)),
+          ),
           ElevatedButton(
-            onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                 await ref.read(firestoreServiceProvider).updateUser(user.uid, {fieldKey: controller.text});
-                 if (context.mounted) Navigator.pop(context);
-              }
+            onPressed: () {
+              ref.read(authControllerProvider.notifier).signOut();
+              Navigator.of(context).popUntil((route) => route.isFirst);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFAF00), foregroundColor: Colors.white),
-            child: const Text('Save'),
+            style: ElevatedButton.styleFrom(
+               backgroundColor: const Color(0xFFFFAF00),
+               foregroundColor: Colors.white,
+               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('Yes', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -272,7 +347,7 @@ class ProfileScreen extends ConsumerWidget {
          color: Colors.white,
          borderRadius: BorderRadius.circular(12),
          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 5, offset: const Offset(0, 2)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 5, offset: const Offset(0, 2)),
          ],
       ),
       child: ListTile(

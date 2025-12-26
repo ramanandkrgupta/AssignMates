@@ -17,6 +17,11 @@ class RequestModel {
   final bool isPageCountVerified;
   final bool isLocationVerified;
   final DateTime createdAt;
+  // New Fields for Detailed Flow
+  final String paymentStatus; // 'unpaid', 'half_paid', 'fully_paid'
+  final double paidAmount;
+  final bool isHalfPayment; // If user chose half payment initially
+  final List<String> verificationPhotos; // Photos uploaded by writer for review
 
   RequestModel({
     required this.id,
@@ -37,6 +42,10 @@ class RequestModel {
     this.isPageCountVerified = false,
     this.isLocationVerified = false,
     required this.createdAt,
+    this.paymentStatus = 'unpaid',
+    this.paidAmount = 0.0,
+    this.isHalfPayment = false,
+    this.verificationPhotos = const [],
   });
 
   Map<String, dynamic> toMap() {
@@ -59,6 +68,10 @@ class RequestModel {
       'isPageCountVerified': isPageCountVerified,
       'isLocationVerified': isLocationVerified,
       'createdAt': createdAt.millisecondsSinceEpoch,
+      'paymentStatus': paymentStatus,
+      'paidAmount': paidAmount,
+      'isHalfPayment': isHalfPayment,
+      'verificationPhotos': verificationPhotos,
     };
   }
 
@@ -82,6 +95,10 @@ class RequestModel {
       isPageCountVerified: map['isPageCountVerified'] ?? false,
       isLocationVerified: map['isLocationVerified'] ?? false,
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
+      paymentStatus: map['paymentStatus'] ?? 'unpaid',
+      paidAmount: (map['paidAmount'] ?? 0).toDouble(),
+      isHalfPayment: map['isHalfPayment'] ?? false,
+      verificationPhotos: List<String>.from(map['verificationPhotos'] ?? []),
     );
   }
 }

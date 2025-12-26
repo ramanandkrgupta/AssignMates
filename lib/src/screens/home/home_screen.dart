@@ -9,6 +9,8 @@ import '../student/profile_screen.dart';
 
 import '../student/support_screen.dart';
 
+final homeTabIndexProvider = StateProvider<int>((ref) => 0);
+
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -17,13 +19,13 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  int _selectedIndex = 0;
-
   static const Color primaryOrange = Color(0xFFFFAF00);
   static const Color darkBlack = Color(0xFF1A1A1A);
 
   @override
   Widget build(BuildContext context) {
+    final selectedIndex = ref.watch(homeTabIndexProvider);
+
     // List of screens for the bottom navigation
     final List<Widget> screens = [
       const _HomeContent(),       // Home Dashboard
@@ -35,15 +37,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       extendBody: true,
       body: GeometricBackground(
-        child: screens[_selectedIndex],
+        child: screens[selectedIndex],
       ),
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarThemeData(
-          labelTextStyle: MaterialStateProperty.all(
+          labelTextStyle: WidgetStateProperty.all(
             GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white),
           ),
-          iconTheme: MaterialStateProperty.resolveWith((states) {
-             if (states.contains(MaterialState.selected)) {
+          iconTheme: WidgetStateProperty.resolveWith((states) {
+             if (states.contains(WidgetState.selected)) {
                return const IconThemeData(size: 28, color: Colors.black); // Selected icon color (on orange pill)
              }
              return const IconThemeData(size: 28, color: Colors.white); // Unselected icon color
@@ -51,11 +53,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         child: NavigationBar(
           height: 80, // Taller navigation bar
-          selectedIndex: _selectedIndex,
+          selectedIndex: selectedIndex,
           onDestinationSelected: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
+            ref.read(homeTabIndexProvider.notifier).state = index;
           },
           backgroundColor: Colors.black, // Dark background
           indicatorColor: primaryOrange, // Orange pill

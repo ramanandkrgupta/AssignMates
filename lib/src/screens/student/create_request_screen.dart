@@ -5,20 +5,18 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'dart:io';
 import 'dart:async';
 import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/cloudinary_service.dart';
 import '../../models/request_model.dart';
 import '../../models/user_model.dart';
-import '../../widgets/geometric_background.dart';
+import '../../services/notification_service.dart';
+import '../home/home_screen.dart';
 
 class CreateRequestScreen extends ConsumerStatefulWidget {
   const CreateRequestScreen({super.key});
@@ -39,12 +37,12 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   bool _isLoading = false;
 
   // Media
-  List<PlatformFile> _selectedPdfs = [];
-  List<PlatformFile> _selectedImages = [];
-  List<PlatformFile> _selectedVideos = [];
+  final List<PlatformFile> _selectedPdfs = [];
+  final List<PlatformFile> _selectedImages = [];
+  final List<PlatformFile> _selectedVideos = [];
 
   // Voice
-  List<String> _voiceNotePaths = [];
+  final List<String> _voiceNotePaths = [];
   FlutterSoundRecorder? _recorder;
   FlutterSoundPlayer? _player;
   bool _isRecording = false;
@@ -58,8 +56,9 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   String _pageType = 'A4'; // 'A4' or 'EdSheet'
   double _estimatedPrice = 0.0;
 
-  // Location
-  String? _address;
+  // Instruction Video
+  VideoPlayerController? _videoController;
+
 
   @override
   void initState() {
@@ -69,7 +68,19 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     _deadline = DateTime.now().add(const Duration(days: 4));
     _calculateEstimate();
     _listControllers.add(TextEditingController()); // Start with one point
+    _initVideoPlayer();
   }
+
+  void _initVideoPlayer() async {
+    _videoController = VideoPlayerController.networkUrl(
+      Uri.parse('https://res.cloudinary.com/doxmvuss9/video/upload/v1766751305/link-generator/hfepcnjloyjrjp2fe66r.mp4')
+    );
+    await _videoController!.initialize();
+    _videoController!.setVolume(0); // Mute
+    _videoController!.setLooping(true);
+    _videoController!.play(); // Autoplay
+    setState(() {});
+    }
 
   Future<void> _initRecorder() async {
     _recorder = FlutterSoundRecorder();
@@ -93,6 +104,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     _recorderSubscription?.cancel();
     _recorder!.closeRecorder();
     _player!.closePlayer();
+    _videoController?.dispose();
     super.dispose();
   }
 
@@ -275,7 +287,9 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                         }
                      } catch (e) {
                         debugPrint('GPS Error: $e');
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('GPS Error: $e'), backgroundColor: Colors.red));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('GPS Error: $e'), backgroundColor: Colors.red));
+                        }
                      } finally {
                         setDialogState(() => _isLoading = false);
                      }
@@ -299,8 +313,9 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                  'location': addressController.text,
                  'phoneNumber': phoneController.text,
                });
-               setState(() => _address = addressController.text);
-               Navigator.pop(context);
+
+
+               if (context.mounted) Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFAF00), foregroundColor: Colors.white),
             child: const Text('Save'),
@@ -319,7 +334,9 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     // Validate Contact
     final appUser = await ref.read(firestoreServiceProvider).getUser(user.uid);
     if (appUser?.phoneNumber == null || appUser?.location == null) {
-       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add Mobile Number and Location')));
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add Mobile Number and Location')));
+       }
        return;
     }
 
@@ -387,9 +404,27 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
 
       await firestoreService.createRequest(newRequest);
 
+      // --- Success Actions ---
       if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Request Created!')));
+        // 1. Notify Admins
+        final notificationService = ref.read(notificationServiceProvider);
+        notificationService.notifyAdmins(
+          title: 'New Order Received! 🚀',
+          body: 'A new order has been placed: ${newRequest.instructions.substring(0, newRequest.instructions.length > 30 ? 30 : newRequest.instructions.length)}...',
+        );
+
+        // 2. Notify User (The requested message)
+        notificationService.notifyUser(
+          userId: user.uid,
+          title: 'Order Received! ✅',
+          body: 'Your order is on the way! You will get a call in 10 minutes.',
+        );
+
+        // 3. Switch to History Tab and close screen
+        if (mounted) {
+          ref.read(homeTabIndexProvider.notifier).state = 1; // Switch to History tab
+          Navigator.pop(context); // Close CreateRequestScreen
+        }
       }
 
     } catch (e) {
@@ -410,7 +445,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         color: Colors.black, // Dark Component
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
-           BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5)),
+           BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 5)),
         ],
       ),
       child: Column(
@@ -530,7 +565,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                                ],
                              ),
                            );
-                        }).toList(),
+                        }),
                         TextButton.icon(
                           onPressed: () => setState(() => _listControllers.add(TextEditingController())),
                           icon: const Icon(Icons.add, color: Color(0xFFFFAF00)),
@@ -566,7 +601,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                                 height: _isRecording ? (60 + (_decibels.clamp(0, 100) * 0.5)) : 80, // React to sound
                                 width: _isRecording ? (60 + (_decibels.clamp(0, 100) * 0.5)) : 80,
                                 decoration: BoxDecoration(
-                                   color: _isRecording ? Colors.red.withOpacity(0.2) : Colors.grey[900],
+                                   color: _isRecording ? Colors.red.withValues(alpha: 0.2) : Colors.grey[900],
                                    shape: BoxShape.circle,
                                    border: Border.all(color: _isRecording ? Colors.red : const Color(0xFFFFAF00), width: 2),
                                 ),
@@ -621,7 +656,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                 child: Column(
                   children: [
                      DropdownButtonFormField<String>(
-                        value: _pageType,
+                        initialValue: _pageType,
                         dropdownColor: Colors.grey[900],
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
@@ -706,7 +741,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                              borderRadius: BorderRadius.circular(16),
                              border: Border.all(color: const Color(0xFFFFAF00)),
                              boxShadow: [
-                                BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4)),
+                                BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 4)),
                              ],
                           ),
                           child: Row(
@@ -725,17 +760,40 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
 
               const SizedBox(height: 10),
 
+              // 5. How to Count Pages (Video)
+              _buildDarkComponent(
+                title: 'How to Count the number of Page?',
+                child: _videoController != null && _videoController!.value.isInitialized
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: AspectRatio(
+                          aspectRatio: _videoController!.value.aspectRatio,
+                          child: IgnorePointer(
+                            child: VideoPlayer(_videoController!),
+                          ),
+                        ),
+                      )
+                    : const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(20.0),
+                          child: CircularProgressIndicator(color: Color(0xFFFFAF00)),
+                        ),
+                      ),
+              ),
+
+              const SizedBox(height: 10),
+
               // 5. Location & Mobile
               _buildDarkComponent(
                  title: 'Mobile Number',
                  child: hasMobile
                  ? ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: Text(user!.phoneNumber!, style: const TextStyle(color: Colors.white, fontSize: 18)),
+                    title: Text(user.phoneNumber!, style: const TextStyle(color: Colors.white, fontSize: 18)),
                     trailing: TextButton(onPressed: () => _updateContactDetails(user), child: const Text('Edit', style: TextStyle(color: Color(0xFFFFAF00)))),
                    )
                  : ElevatedButton(
-                    onPressed: () => _updateContactDetails(user!),
+                    onPressed: () => _updateContactDetails(user),
                     style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFAF00), foregroundColor: Colors.black, minimumSize: const Size(double.infinity, 50)),
                     child: const Text('Add Mobile Number'),
                  ),
@@ -746,11 +804,11 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                  child: hasLocation
                  ? ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: Text(user!.location!, style: const TextStyle(color: Colors.white), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    title: Text(user.location!, style: const TextStyle(color: Colors.white), maxLines: 2, overflow: TextOverflow.ellipsis),
                     trailing: TextButton(onPressed: () => _updateContactDetails(user), child: const Text('Edit', style: TextStyle(color: Color(0xFFFFAF00)))),
                    )
                  : ElevatedButton(
-                    onPressed: () => _updateContactDetails(user!),
+                    onPressed: () => _updateContactDetails(user),
                     style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFAF00), foregroundColor: Colors.black, minimumSize: const Size(double.infinity, 50)),
                     child: const Text('Add Location'),
                  ),

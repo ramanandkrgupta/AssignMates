@@ -1,0 +1,5 @@
+ - in history page  move all the cancelled and completed orders to the bottom of the History  and write Previous orders  text in left side and  on current orders write Ongoing orders
+
+ - in top header make the My orders in left side and make right side a button + make new order button there  so we can have more area for orders
+
+ - and on scrolling make sure it not showing the bottom most history page because of the navigation menu so somehow make it like this i can see bottom most too okay 

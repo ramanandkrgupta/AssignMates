@@ -51,6 +51,8 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   String? _playingPath;
   StreamSubscription? _recorderSubscription;
   double _decibels = 0.0; // For visualizer
+  Timer? _recordTimer;
+  int _recordDuration = 0; // Seconds
 
   // Pricing Logic
   String _pageType = 'A4'; // 'A4' or 'EdSheet'
@@ -129,6 +131,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       if (path != null) {
         setState(() {
           _isRecording = false;
+          _stopTimer();
           _voiceNotePaths.add(path);
           _decibels = 0.0;
         });
@@ -145,7 +148,11 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
               }
            });
 
-           setState(() => _isRecording = true);
+           setState(() {
+               _isRecording = true;
+               _recordDuration = 0;
+           });
+           _startTimer();
        }
     }
   }
@@ -165,6 +172,24 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
          whenFinished: () => setState(() => _playingPath = null),
       );
     }
+  }
+
+  void _startTimer() {
+    _recordTimer?.cancel();
+    _recordTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() => _recordDuration++);
+    });
+  }
+
+  void _stopTimer() {
+    _recordTimer?.cancel();
+    _recordDuration = 0;
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = (seconds / 60).floor().toString().padLeft(2, '0');
+    final secs = (seconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$secs';
   }
 
   Future<void> _pickFiles(FileType type, List<PlatformFile> targetList, {List<String>? allowedExtensions}) async {
@@ -188,7 +213,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     final days = _deadline!.difference(DateTime.now()).inDays + 1;
 
     if (_pageType == 'EdSheet') {
-      _estimatedPrice = 230.0; // Fixed
+      _estimatedPrice = 230.0 * _pageCount; // Fixed per page
     } else {
       // Assignment
       double pricePerPage = 4.0;
@@ -203,63 +228,86 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   }
 
   Future<void> _updateContactDetails(AppUser user) async {
-    setState(() => _isLoading = true);
-    try {
-        final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-        if (!serviceEnabled) throw Exception('Location services are disabled.');
+    final phoneController = TextEditingController(text: user.phoneNumber ?? '');
+    final addressController = TextEditingController(text: user.location ?? '');
 
-        var permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.deniedForever) throw Exception('Location permissions denied.');
-
-        final position = await Geolocator.getCurrentPosition();
-        final placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
-        String fetchedAddress = '';
-        if (placemarks.isNotEmpty) {
-           final place = placemarks.first;
-           fetchedAddress = '${place.street}, ${place.subLocality}, ${place.locality}, ${place.postalCode}';
-        }
-
-        if (!mounted) return;
-
-        final phoneController = TextEditingController(text: user.phoneNumber ?? '');
-        final addressController = TextEditingController(text: fetchedAddress.isNotEmpty ? fetchedAddress : (user.location ?? ''));
-
-        await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Update Contact'),
-            content: Column(
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Update Contact'),
+        content: StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: addressController, decoration: const InputDecoration(labelText: 'Address', prefixIcon: Icon(Icons.location_on))),
+                TextField(
+                  controller: addressController,
+                  decoration: const InputDecoration(labelText: 'Address', prefixIcon: Icon(Icons.location_on)),
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                     setDialogState(() => _isLoading = true); // Local loading usually
+                     try {
+                        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+                        if (!serviceEnabled) {
+                           // Try to open settings
+                           serviceEnabled = await Geolocator.openLocationSettings();
+                           if (!serviceEnabled) throw Exception('Please enable Location Services (GPS) on your device.');
+                        }
+
+                        var permission = await Geolocator.checkPermission();
+                        if (permission == LocationPermission.denied) {
+                           permission = await Geolocator.requestPermission();
+                           if (permission == LocationPermission.denied) throw Exception('Location permissions are denied.');
+                        }
+                        if (permission == LocationPermission.deniedForever) {
+                           throw Exception('Location permissions are permanently denied. Please enable them in App Settings.');
+                        }
+
+                        final position = await Geolocator.getCurrentPosition();
+                        final placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+                        if (placemarks.isNotEmpty) {
+                           final place = placemarks.first;
+                           final fetched = '${place.street}, ${place.subLocality}, ${place.locality}, ${place.postalCode}';
+                           addressController.text = fetched;
+                        }
+                     } catch (e) {
+                        debugPrint('GPS Error: $e');
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('GPS Error: $e'), backgroundColor: Colors.red));
+                     } finally {
+                        setDialogState(() => _isLoading = false);
+                     }
+                  },
+                  icon: const Icon(Icons.my_location),
+                  label: const Text('Detect GPS Location'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white),
+                ),
                 const SizedBox(height: 10),
                 TextField(controller: phoneController, decoration: const InputDecoration(labelText: 'Mobile', prefixIcon: Icon(Icons.phone)), keyboardType: TextInputType.phone),
               ],
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-              ElevatedButton(
-                onPressed: () async {
-                   if (phoneController.text.isEmpty) return;
-                   await ref.read(firestoreServiceProvider).updateUser(user.uid, {
-                     'location': addressController.text,
-                     'phoneNumber': phoneController.text,
-                   });
-                   setState(() => _address = addressController.text);
-                   Navigator.pop(context);
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFAF00), foregroundColor: Colors.white),
-                child: const Text('Save'),
-              ),
-            ],
+            );
+          }
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+               if (phoneController.text.isEmpty) return;
+               await ref.read(firestoreServiceProvider).updateUser(user.uid, {
+                 'location': addressController.text,
+                 'phoneNumber': phoneController.text,
+               });
+               setState(() => _address = addressController.text);
+               Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFAF00), foregroundColor: Colors.white),
+            child: const Text('Save'),
           ),
-        );
-    } catch (e) {
-       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-    } finally {
-       if (mounted) setState(() => _isLoading = false);
-    }
+        ],
+      ),
+    );
   }
 
 
@@ -531,7 +579,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                               if (_isRecording)
                                  Padding(
                                    padding: const EdgeInsets.only(top: 8.0),
-                                   child: Text('Recording... ${(_decibels).toStringAsFixed(1)} dB', style: const TextStyle(color: Colors.red, fontSize: 10)),
+                                   child: Text('Recording... ${_formatDuration(_recordDuration)} | ${(_decibels).toStringAsFixed(1)} dB', style: const TextStyle(color: Colors.red, fontSize: 12)),
                                  ),
                             ],
                          ),
@@ -598,10 +646,14 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                            Text('Deadline', style: GoogleFonts.outfit(color: Colors.white, fontSize: 16)),
                            ElevatedButton(
                               onPressed: () async {
+                                 // For EdSheet: Min 3 days
+                                 final minDays = _pageType == 'EdSheet' ? 3 : 0;
+                                 final initialDate = DateTime.now().add(Duration(days: minDays > 0 ? minDays : 4)); // Default somewhat ahead
+
                                  final picked = await showDatePicker(
                                    context: context,
-                                   initialDate: DateTime.now().add(const Duration(days: 4)),
-                                   firstDate: DateTime.now(),
+                                   initialDate: _deadline != null && _deadline!.isAfter(DateTime.now().add(Duration(days: minDays))) ? _deadline! : initialDate,
+                                   firstDate: DateTime.now().add(Duration(days: minDays)),
                                    lastDate: DateTime.now().add(const Duration(days: 60))
                                  );
                                  if (picked != null) setState(() { _deadline = picked; _calculateEstimate(); });
@@ -612,20 +664,61 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                          ],
                       ),
                       const SizedBox(height: 16),
-                       if (_pageType == 'A4')
-                        Row(
-                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                           children: [
+                      // Page Count (Visible for both now)
+                       Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
                               Text('Number of Pages', style: GoogleFonts.outfit(color: Colors.white, fontSize: 16)),
-                              Row(
-                                children: [
-                                  IconButton(icon: const Icon(Icons.remove_circle, color: Colors.grey), onPressed: () { if (_pageCount > 1) setState(() { _pageCount--; _calculateEstimate(); }); }),
-                                  Text('$_pageCount', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                                  IconButton(icon: const Icon(Icons.add_circle, color: Color(0xFFFFAF00)), onPressed: () { setState(() { _pageCount++; _calculateEstimate(); }); }),
-                                ],
+                              SizedBox(
+                                width: 100,
+                                child: TextFormField(
+                                  // Use Key to force rebuild if valid changes significantly, or controller.
+                                  // Simple initialValue works if not constantly changing from outside.
+                                  initialValue: _pageCount.toString(),
+                                  keyboardType: TextInputType.number,
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                  textAlign: TextAlign.center,
+                                  decoration: InputDecoration(
+                                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                    filled: true,
+                                    fillColor: Colors.grey[800],
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                                  ),
+                                  onChanged: (val) {
+                                     final count = int.tryParse(val);
+                                     if (count != null && count > 0) {
+                                       setState(() {
+                                         _pageCount = count;
+                                         _calculateEstimate();
+                                       });
+                                     }
+                                  },
+                                ),
                               ),
-                           ],
-                        ),
+                          ],
+                       ),
+                       // Estimated Price (Moved here)
+                       const SizedBox(height: 16),
+                       Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                             color: Colors.black,
+                             borderRadius: BorderRadius.circular(16),
+                             border: Border.all(color: const Color(0xFFFFAF00)),
+                             boxShadow: [
+                                BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4)),
+                             ],
+                          ),
+                          child: Row(
+                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                             children: [
+                                const Text('Estimated Price', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                                Text('₹${_estimatedPrice.toStringAsFixed(0)}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFFFFAF00))),
+                             ],
+                          ),
+                       ),
+                      const SizedBox(height: 16),
+
                   ],
                 ),
               ),
@@ -666,21 +759,8 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
               const SizedBox(height: 20),
 
               // Estimate & Submit
-              Container(
-                 padding: const EdgeInsets.all(20),
-                 decoration: BoxDecoration(
-                    color: const Color(0xFFFFAF00).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFFFAF00)),
-                 ),
-                 child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                       const Text('Estimated Price', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                       Text('₹${_estimatedPrice.toStringAsFixed(0)}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFFFFAF00))),
-                    ],
-                 ),
-              ),
+              const SizedBox(height: 20),
+              // Price removed from here, moved up.
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,

@@ -28,5 +28,9 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We need your location to deliver physical assignments to your address.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>We need your location to deliver physical assignments to your address.</string>
 </dict>
 </plist>

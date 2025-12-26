@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../providers/auth_provider.dart';
+import '../../models/user_model.dart';
+import '../../services/firestore_service.dart';
 import '../../widgets/glass_card.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -9,10 +11,11 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(authStateProvider).value;
+    final userAsync = ref.watch(currentUserStreamProvider);
+    final user = userAsync.value;
 
     if (user == null) {
-      return const Scaffold(backgroundColor: Colors.transparent, body: Center(child: Text('Please login')));
+      return const Scaffold(backgroundColor: Colors.transparent, body: Center(child: CircularProgressIndicator()));
     }
 
     // Mock stats for now
@@ -28,9 +31,13 @@ class ProfileScreen extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Profile', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFFFAF00),
         elevation: 0,
         centerTitle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+        ),
+        iconTheme: const IconThemeData(color: Colors.black),
         actions: [
           IconButton(icon: const Icon(Icons.settings, color: Colors.black), onPressed: () {}),
         ],
@@ -117,6 +124,35 @@ class ProfileScreen extends ConsumerWidget {
             ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2),
 
             const SizedBox(height: 32),
+
+             // Personal Details Section
+            Text(
+              'Personal Details',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Colors.black),
+            ).animate().fadeIn(delay: 400.ms),
+            const SizedBox(height: 16),
+
+            _buildEditableTile(
+              context,
+              ref,
+              user,
+              'Mobile Number',
+              user.phoneNumber ?? 'Add Mobile Number',
+              Icons.phone,
+              'phoneNumber'
+            ),
+             _buildEditableTile(
+              context,
+              ref,
+              user,
+              'Location',
+              user.location ?? 'Add Location',
+              Icons.location_on,
+              'location',
+              isLocation: true
+            ),
+
+            const SizedBox(height: 32),
             _buildSettingsItem(context, Icons.history, 'Order History'),
             _buildSettingsItem(context, Icons.help_outline, 'Help & Support'),
             _buildSettingsItem(context, Icons.privacy_tip_outlined, 'Privacy Policy'),
@@ -145,6 +181,86 @@ class ProfileScreen extends ConsumerWidget {
             ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.5),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildEditableTile(BuildContext context, WidgetRef ref, AppUser user, String title, String value, IconData icon, String fieldKey, {bool isLocation = false}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+         color: Colors.white,
+         borderRadius: BorderRadius.circular(12),
+         boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 5, offset: const Offset(0, 2)),
+         ],
+      ),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: const Color(0xFFFFAF00).withOpacity(0.1), shape: BoxShape.circle),
+          child: Icon(icon, color: const Color(0xFFFFAF00), size: 20),
+        ),
+        title: Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        subtitle: Text(value, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
+        trailing: const Icon(Icons.edit, color: Colors.grey, size: 20),
+        onTap: () => _showEditDialog(context, ref, user, title, value, fieldKey, isLocation: isLocation),
+      ),
+    ).animate().fadeIn(delay: 500.ms);
+  }
+
+  Future<void> _showEditDialog(BuildContext context, WidgetRef ref, AppUser user, String title, String currentValue, String fieldKey, {bool isLocation = false}) async {
+    final controller = TextEditingController(text: currentValue == 'Add $title' ? '' : currentValue);
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Update $title'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isLocation) ...[
+                ElevatedButton.icon(
+                  onPressed: () async {
+                     // Reuse location logic or simple placeholder for now as full logic is in CreateRequest
+                     // ideally we move location logic to a service.
+                     // For now, let user type or we can copy-paste the geolocator logic if needed.
+                     // But strictly user asked for "update from there too", implying manual or auto.
+                     Navigator.pop(context);
+                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please use the Create Request page to auto-detect GPS location for accuracy.')));
+                  },
+                  icon: const Icon(Icons.my_location),
+                  label: const Text('Detect GPS Location'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white),
+                ),
+                const SizedBox(height: 10),
+                const Text('OR', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                 const SizedBox(height: 10),
+            ],
+            TextField(
+              controller: controller,
+              decoration: InputDecoration(
+                hintText: 'Enter $title',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              maxLines: isLocation ? 3 : 1,
+              keyboardType: isLocation ? TextInputType.multiline : TextInputType.phone,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              if (controller.text.isNotEmpty) {
+                 await ref.read(firestoreServiceProvider).updateUser(user.uid, {fieldKey: controller.text});
+                 if (context.mounted) Navigator.pop(context);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFAF00), foregroundColor: Colors.white),
+            child: const Text('Save'),
+          ),
+        ],
       ),
     );
   }

@@ -8,8 +8,12 @@ class AppUser extends Equatable {
   final String? photoURL;
   final String role; // 'student', 'writer', 'admin'
   final String? collegeId;
+  final String? city;
   final String? phoneNumber;
-  final Map<String, dynamic>? location; // {lat: double, lng: double, address: String}
+  final String? location; // Changed to String to match CreateRequestScreen usage
+  final bool isWriterApproved;
+  final double rating;
+  final DateTime createdAt;
 
   const AppUser({
     required this.uid,
@@ -53,7 +57,7 @@ class AppUser extends Equatable {
       collegeId: map['collegeId'],
       city: map['city'],
       phoneNumber: map['phoneNumber'],
-      location: map['location'] != null ? Map<String, dynamic>.from(map['location']) : null,
+      location: map['location'],
       isWriterApproved: map['isWriterApproved'] ?? false,
       rating: map['rating']?.toDouble() ?? 0.0,
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),

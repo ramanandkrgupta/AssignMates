@@ -1,12 +1,13 @@
-
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:cloudinary_public/cloudinary_public.dart';
 import 'package:file_picker/file_picker.dart';
 
 class CloudinaryService {
-  static const String _cloudName = 'doxmvuss9';
-  static const String _uploadPreset = 'presentsir';
-
-  final CloudinaryPublic _cloudinary = CloudinaryPublic(_cloudName, _uploadPreset, cache: false);
+  final CloudinaryPublic _cloudinary = CloudinaryPublic(
+    dotenv.env['CLOUDINARY_CLOUD_NAME']!,
+    dotenv.env['CLOUDINARY_UPLOAD_PRESET']!,
+    cache: false
+  );
 
   Future<String?> uploadFile({required PlatformFile file, String folder = 'assignments'}) async {
     try {
@@ -22,3 +23,5 @@ class CloudinaryService {
 }
 
 final cloudinaryServiceProvider = CloudinaryService();
+
+

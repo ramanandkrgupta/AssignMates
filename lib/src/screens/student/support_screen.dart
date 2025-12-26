@@ -9,9 +9,13 @@ class SupportScreen extends StatelessWidget {
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Support', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFFFAF00),
         elevation: 0,
         centerTitle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+        ),
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: Center(
         child: Column(

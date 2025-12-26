@@ -2,16 +2,79 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../models/request_model.dart';
 
 
-class RequestHistoryScreen extends ConsumerWidget {
+class RequestHistoryScreen extends ConsumerStatefulWidget {
   const RequestHistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RequestHistoryScreen> createState() => _RequestHistoryScreenState();
+}
+
+class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
+  late Razorpay _razorpay;
+
+  @override
+  void initState() {
+    super.initState();
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    _razorpay.clear();
+  }
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    // In production, verify signature here
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment Success: ${response.paymentId}')));
+
+    // Logic to update server that payment succeeded would go here
+    // e.g. ref.read(firestoreServiceProvider).updateRequestStatus(requestId, 'completed');
+    // But we need requestId. We can store it in class level or pass via options 'notes'.
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment Failed: ${response.message}')));
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('External Wallet: ${response.walletName}')));
+  }
+
+  void _openCheckout(RequestModel request) {
+    var options = {
+      'key': dotenv.env['RAZORPAY_KEY_ID']!,
+      'amount': (request.budget * 100).toInt(), // Amount in paise
+      'name': 'AssignMates',
+      'description': 'Payment for Request #${request.id}',
+      'prefill': {
+        'contact': '9876543210', // Get from User Profile
+        'email': 'student@example.com' // Get from User Profile
+      },
+      'external': {
+        'wallets': ['paytm']
+      }
+    };
+
+    try {
+      _razorpay.open(options);
+    } catch (e) {
+      debugPrint('Error: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).value;
     final firestoreService = ref.watch(firestoreServiceProvider);
 
@@ -19,9 +82,13 @@ class RequestHistoryScreen extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Request History', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFFFAF00),
         elevation: 0,
         centerTitle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+        ),
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: user == null
           ? const Center(child: Text('Please login to view history'))
@@ -74,12 +141,20 @@ class RequestHistoryScreen extends ConsumerWidget {
 
   Widget _buildRequestCard(BuildContext context, RequestModel request) {
     Color statusColor;
+    String statusText = request.status.toUpperCase();
+    bool showPayButton = false;
+
     switch (request.status.toLowerCase()) {
       case 'completed':
         statusColor = Colors.blue;
         break;
       case 'assigned':
+      case 'writer_assigned':
         statusColor = Colors.purple;
+        break;
+      case 'payment_pending':
+        statusColor = Colors.redAccent;
+        showPayButton = true;
         break;
       default:
         statusColor = const Color(0xFFFFAF00); // Primary Orange
@@ -108,7 +183,7 @@ class RequestHistoryScreen extends ConsumerWidget {
               children: [
                 Expanded(
                   child: Text(
-                    request.title,
+                    request.instructions, // Replaced title
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: Colors.black,
@@ -125,7 +200,7 @@ class RequestHistoryScreen extends ConsumerWidget {
                     border: Border.all(color: statusColor.withOpacity(0.3)),
                   ),
                   child: Text(
-                    request.status.toUpperCase(),
+                    statusText,
                     style: TextStyle(
                       color: statusColor,
                       fontWeight: FontWeight.bold,
@@ -137,7 +212,7 @@ class RequestHistoryScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              request.description,
+              request.instructions, // Replaced description
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -167,6 +242,22 @@ class RequestHistoryScreen extends ConsumerWidget {
                 ),
               ],
             ),
+            if (showPayButton)
+              Padding(
+                padding: const EdgeInsets.only(top: 12.0),
+                child: SizedBox(
+                   width: double.infinity,
+                   child: ElevatedButton(
+                     onPressed: () => _openCheckout(request),
+                     style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                     ),
+                     child: const Text('Pay Now'),
+                   ),
+                ),
+              ),
           ],
         ),
       ),

@@ -45,7 +45,7 @@ dependencies:
   intl: ^0.19.0
   lottie: ^3.3.0
   shared_preferences: ^2.5.4
-  cloudinary_public: ^0.2.2
+  cloudinary_public: ^0.23.1
   file_picker: ^8.1.7
   flutter_sound: ^9.16.2
   permission_handler: ^11.3.1
@@ -55,6 +55,7 @@ dependencies:
   video_player: ^2.9.2
   chewie: ^1.8.5
   path_provider: ^2.1.5
+  flutter_dotenv: ^6.0.0
 
 dev_dependencies:
   flutter_test:
@@ -82,3 +83,4 @@ flutter:
   assets:
     - assets/animations/
     - assets/images/
+    - .env

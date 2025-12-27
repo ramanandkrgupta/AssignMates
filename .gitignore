@@ -43,3 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+notification-service/node_modules
+
+# Notification Service Secrets
+notification-service/assignmates-app-firebase-adminsdk-fbsvc-*.json
+notification-service/google-services.json
+notification-service/.env
+notification-service/service-account.json

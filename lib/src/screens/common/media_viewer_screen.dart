@@ -5,6 +5,7 @@ import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 enum MediaType { image, video, pdf }
 
@@ -93,6 +94,25 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     super.dispose();
   }
 
+  Future<void> _downloadCurrentFile() async {
+    final url = widget.urls[_currentIndex];
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Download started...'), duration: Duration(seconds: 2)),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not start download'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -102,6 +122,13 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
         backgroundColor: Colors.black,
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download, color: Color(0xFFFFAF00)),
+            onPressed: _downloadCurrentFile,
+            tooltip: 'Download Currently Viewed File',
+          ),
+        ],
       ),
       body: Stack(
         children: [

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart';
 import '../../services/firestore_service.dart';
+import '../student/create_request_screen.dart';
+import 'assign_writer_screen.dart';
 import '../../models/request_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
@@ -264,6 +266,19 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> with Sing
                           ],
                         ),
                       ),
+                    ElevatedButton(
+                      onPressed: () => _showCancelDialog(request),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.withValues(alpha: 0.2),
+                        foregroundColor: Colors.redAccent,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: Text('Cancel', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 10)),
+                    ),
+                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
@@ -357,7 +372,36 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> with Sing
                         children: [
                           _buildVerticalStep(context, 0, 'Order Placed', 'Request created successfully', currentStep),
                           _buildVerticalStep(context, 1, 'Admin Verification', 'Admin verified request', currentStep),
-                          _buildVerticalStep(context, 2, 'Writer Assigned', 'Writer has been assigned', currentStep),
+                          _buildVerticalStep(
+                            context,
+                            2,
+                            'Writer Assigned',
+                            request.assignedWriterId != null
+                                ? 'Assigned to Writer'
+                                : 'Writer has been assigned',
+                            currentStep,
+                            trailing: (request.assignedWriterId == null && request.status != 'cancelled')
+                                ? ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => AssignWriterScreen(request: request),
+                                        ),
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFFFAF00),
+                                      foregroundColor: Colors.black,
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
+                                    child: Text('ASSIGN', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 10)),
+                                  )
+                                : null,
+                          ),
                           _buildVerticalStep(context, 3, 'Payment', 'Half or Full Payment required', currentStep),
                           _buildVerticalStep(context, 4, 'Writer Started', 'Writer is working', currentStep),
                           _buildVerticalStep(context, 5, 'Writer Completed', 'Work ready for verification', currentStep),
@@ -370,8 +414,14 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> with Sing
                     ),
 
                     const SizedBox(height: 15),
+                    // Delivery Info for Admin
+                    if (request.status == 'review_pending' || request.status == 'payment_remaining_pending' || request.status == 'delivering')
+                      _buildDeliveryManagement(context, request),
+
+                    const SizedBox(height: 15),
                     // Verification Action Bar
-                    _buildVerificationBar(request),
+                    if (!request.isPageCountVerified && request.status != 'cancelled')
+                      _buildVerificationBar(request),
                   ],
                 ),
               ),
@@ -380,6 +430,78 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> with Sing
           ),
         );
       },
+    );
+  }
+
+  Widget _buildDeliveryManagement(BuildContext context, RequestModel request) {
+    final deliveryController = TextEditingController(text: request.estimatedDeliveryTime ?? '');
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('DELIVERY MANAGEMENT', style: GoogleFonts.outfit(color: const Color(0xFFFFAF00), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: deliveryController,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Today 5 pm',
+                    hintStyle: const TextStyle(color: Colors.white24),
+                    labelText: 'Est. Delivery Time',
+                    labelStyle: const TextStyle(color: Color(0xFFFFAF00), fontSize: 12),
+                    isDense: true,
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFFFAF00))),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              IconButton(
+                icon: const Icon(Icons.save, color: Color(0xFFFFAF00)),
+                onPressed: () async {
+                   await ref.read(firestoreServiceProvider).updateRequest(request.id, {
+                     'estimatedDeliveryTime': deliveryController.text,
+                   });
+                   if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delivery time updated!')));
+                },
+              ),
+            ],
+          ),
+          if (request.status == 'delivering')
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    await ref.read(firestoreServiceProvider).updateRequestStatus(
+                      request.id,
+                      'completed',
+                      additionalData: {'deliveryCompletedAt': DateTime.now().millisecondsSinceEpoch}
+                    );
+                    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order marked as Completed!')));
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('MARK DELIVERY COMPLETED', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -564,9 +686,10 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> with Sing
     }
   }
 
-  Widget _buildVerticalStep(BuildContext context, int index, String title, String subtitle, int currentIndex, {bool isLast = false}) {
+  Widget _buildVerticalStep(BuildContext context, int index, String title, String subtitle, int currentIndex, {bool isLast = false, Widget? trailing}) {
     bool isCompleted = index < currentIndex;
     bool isActive = index == currentIndex;
+    bool isPending = index > currentIndex;
 
     Color circleColor;
     Color borderColor;
@@ -623,28 +746,127 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> with Sing
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(bottom: 24.0),
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.outfit(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: isActive ? Colors.white : (isCompleted ? Colors.white70 : Colors.grey[600]),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: GoogleFonts.outfit(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: isActive ? Colors.white : (isCompleted ? Colors.white70 : Colors.grey[600]),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[500]),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[500]),
-                  ),
+                  if (trailing != null) trailing,
                 ],
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showCancelDialog(RequestModel req) async {
+    String? selectedReason;
+    final otherReasonController = TextEditingController();
+    bool showOtherInput = false;
+
+    final reasons = [
+      'Incorrect instructions provided',
+      'Duplicate request',
+      'Writer unavailable for this topic',
+      'Policy violation',
+      'Other',
+    ];
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E1E1E),
+              title: Text('Cancel Order', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ...reasons.map((reason) => RadioListTile<String>(
+                      title: Text(reason, style: GoogleFonts.outfit(color: Colors.white, fontSize: 14)),
+                      value: reason,
+                      groupValue: selectedReason,
+                      activeColor: const Color(0xFFFFAF00),
+                      onChanged: (val) {
+                        setDialogState(() {
+                          selectedReason = val;
+                          showOtherInput = val == 'Other';
+                        });
+                      },
+                    )),
+                    if (showOtherInput)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: TextField(
+                          controller: otherReasonController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: const InputDecoration(
+                            hintText: 'Enter reason...',
+                            hintStyle: TextStyle(color: Colors.white24),
+                            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFFAF00))),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('BACK', style: GoogleFonts.outfit(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: selectedReason == null ? null : () async {
+                    String finalReason = selectedReason!;
+                    if (selectedReason == 'Other') {
+                      finalReason = otherReasonController.text.trim();
+                      if (finalReason.isEmpty) finalReason = 'Other';
+                    }
+
+                    await ref.read(firestoreServiceProvider).updateRequestStatus(
+                      req.id,
+                      'cancelled',
+                      additionalData: {'cancellationReason': finalReason}
+                    );
+
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Order #${req.id.substring(0, 5)} cancelled.'))
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+                  child: Text('CONFIRM CANCEL', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

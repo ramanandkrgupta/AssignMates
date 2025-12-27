@@ -8,6 +8,9 @@ import '../../services/firestore_service.dart';
 import '../../models/request_model.dart';
 import 'package:lottie/lottie.dart';
 import 'create_request_screen.dart';
+import '../common/media_viewer_screen.dart';
+import '../../models/user_model.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class RequestHistoryScreen extends ConsumerStatefulWidget {
   const RequestHistoryScreen({super.key});
@@ -18,6 +21,8 @@ class RequestHistoryScreen extends ConsumerStatefulWidget {
 
 class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
   late Razorpay _razorpay;
+  RequestModel? _pendingRequest;
+  String? _pendingPaymentType; // 'half', 'full', 'final'
 
   @override
   void initState() {
@@ -34,8 +39,49 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
     _razorpay.clear();
   }
 
-  void _handlePaymentSuccess(PaymentSuccessResponse response) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment Success: ${response.paymentId}')));
+  void _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    if (_pendingRequest != null && _pendingPaymentType != null) {
+      final firestoreService = ref.read(firestoreServiceProvider);
+      final req = _pendingRequest!;
+
+      Map<String, dynamic> updateData = {};
+
+      if (_pendingPaymentType == 'half') {
+        updateData = {
+          'status': 'in_progress',
+          'paymentStatus': 'half_paid',
+          'paidAmount': (req.budget / 2),
+          'isHalfPayment': true,
+        };
+      } else if (_pendingPaymentType == 'full') {
+        updateData = {
+          'status': 'in_progress',
+          'paymentStatus': 'fully_paid',
+          'paidAmount': req.budget,
+          'isHalfPayment': false,
+        };
+      } else if (_pendingPaymentType == 'final') {
+        updateData = {
+          'status': 'delivering',
+          'paymentStatus': 'fully_paid',
+          'paidAmount': req.budget,
+        };
+      }
+
+      await firestoreService.updateRequest(req.id, updateData);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Payment Successful! Order updated.', style: TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: Colors.green,
+        ));
+      }
+
+      _pendingRequest = null;
+      _pendingPaymentType = null;
+    } else {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment Success: ${response.paymentId}')));
+    }
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
@@ -47,6 +93,9 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
   }
 
   void _openCheckout(RequestModel request, {bool isHalf = false, bool isFull = false, bool isFinal = false}) {
+    _pendingRequest = request;
+    _pendingPaymentType = isHalf ? 'half' : (isFinal ? 'final' : 'full');
+
     int amountInPaise = 0;
     if (isFinal) {
       amountInPaise = ((request.budget - request.paidAmount) * 100).toInt();
@@ -212,17 +261,36 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
     // Determine active step index
     int currentStep = 0;
     switch (request.status) {
-      case 'created': currentStep = 0; break;
-      case 'verified': currentStep = 1; break;
-      case 'assigned': currentStep = 2; break;
-      case 'payment_pending': currentStep = 3; break;
-      case 'in_progress': currentStep = 4; break;
-      case 'review_pending': currentStep = 5; break;
-      case 'payment_remaining_pending': currentStep = 6; break;
-      case 'delivering': currentStep = 7; break;
-      case 'completed': currentStep = 8; break;
-      case 'cancelled': currentStep = -1; break;
-      default: currentStep = 0;
+      case 'created':
+        currentStep = 1;
+        break;
+      case 'verified':
+        currentStep = 2;
+        break;
+      case 'assigned':
+      case 'payment_pending':
+        currentStep = 3;
+        break;
+      case 'in_progress':
+        currentStep = 4;
+        break;
+      case 'review_pending':
+        currentStep = request.isHalfPayment ? 6 : 7;
+        break;
+      case 'payment_remaining_pending':
+        currentStep = 6;
+        break;
+      case 'delivering':
+        currentStep = 7;
+        break;
+      case 'completed':
+        currentStep = 9;
+        break;
+      case 'cancelled':
+        currentStep = -1;
+        break;
+      default:
+        currentStep = 1;
     }
 
     // Status Logic & Colors
@@ -310,7 +378,7 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
               children: [
                 const Icon(Icons.attachment, size: 18, color: Color(0xFFFFAF00)),
                 const SizedBox(width: 6),
-                Text('${request.attachmentUrls.length} Views', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                Text('${request.attachmentUrls.length} Attachments', style: const TextStyle(color: Colors.grey, fontSize: 13)),
                 const SizedBox(width: 20),
                 const Icon(Icons.account_balance_wallet_outlined, size: 18, color: Color(0xFFFFAF00)),
                 const SizedBox(width: 6),
@@ -390,8 +458,70 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
                 ),
               ),
 
+             // Work Verification Photos
+             if (request.verificationPhotos.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('WORK DONE PROOF', style: GoogleFonts.outfit(color: const Color(0xFFFFAF00), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      height: 100,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: request.verificationPhotos.length,
+                        itemBuilder: (context, i) => GestureDetector(
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MediaViewerScreen(urls: request.verificationPhotos, title: 'Writer Proof', initialIndex: i))),
+                          child: Container(
+                            margin: const EdgeInsets.only(right: 10),
+                            width: 100,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              image: DecorationImage(image: NetworkImage(request.verificationPhotos[i]), fit: BoxFit.cover),
+                              border: Border.all(color: Colors.white10),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+             // Estimated Delivery Time
+             if (request.estimatedDeliveryTime != null && request.status != 'completed' && request.status != 'cancelled')
+              Padding(
+                padding: const EdgeInsets.only(top: 20),
+                child: Container(
+                   padding: const EdgeInsets.all(16),
+                   decoration: BoxDecoration(
+                     color: const Color(0xFFFFAF00).withOpacity(0.1),
+                     borderRadius: BorderRadius.circular(16),
+                     border: Border.all(color: const Color(0xFFFFAF00).withOpacity(0.2)),
+                   ),
+                   child: Row(
+                     children: [
+                       const Icon(Icons.delivery_dining, color: Color(0xFFFFAF00)),
+                       const SizedBox(width: 12),
+                       Expanded(
+                         child: Column(
+                           crossAxisAlignment: CrossAxisAlignment.start,
+                           children: [
+                             Text('ESTIMATED DELIVERY', style: GoogleFonts.outfit(color: const Color(0xFFFFAF00), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                             Text(request.estimatedDeliveryTime!, style: GoogleFonts.outfit(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                           ],
+                         ),
+                       ),
+                     ],
+                   ),
+                ),
+              ),
+
+             const SizedBox(height: 20),
              // Payment Step
-             if (request.status == 'payment_pending')
+             if (request.status == 'assigned' || request.status == 'payment_pending')
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -406,56 +536,77 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
                 ),
               ),
 
-              // Assigned - Mock Profile
-              if (request.status == 'assigned')
-               Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Writer Assigned! Check their samples:',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange)),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 12,
-                        children: [1,2].map((e) => Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[800],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(Icons.image, size: 24, color: Colors.white54)
-                        )).toList(),
+
+
+             // Assigned - Real Profile
+              if (request.status == 'assigned' && request.assignedWriterId != null)
+               FutureBuilder<AppUser?>(
+                 future: ref.read(firestoreServiceProvider).getUser(request.assignedWriterId!),
+                 builder: (context, writerSnapshot) {
+                   final writer = writerSnapshot.data;
+                   if (writer == null) return const SizedBox();
+
+                   return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Writer Assigned! Check Writing samples:',
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFFFFAF00))),
+                          const SizedBox(height: 12),
+                          if (writer.sampleWorkUrls.isEmpty)
+                             Text('No samples available', style: GoogleFonts.outfit(color: Colors.white24, fontSize: 12))
+                          else
+                            SizedBox(
+                              height: 60,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: writer.sampleWorkUrls.length,
+                                itemBuilder: (context, index) {
+                                  final url = writer.sampleWorkUrls[index];
+                                  return GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => MediaViewerScreen(
+                                            urls: writer.sampleWorkUrls,
+                                            title: '${writer.displayName}\'s Samples',
+                                            initialIndex: index,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: Container(
+                                      margin: const EdgeInsets.only(right: 12),
+                                      width: 60,
+                                      height: 60,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.white12),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(url, fit: BoxFit.cover),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                    );
+                 },
+               ),
 
              // Review Step
              if (request.status == 'review_pending')
                Column(
                  crossAxisAlignment: CrossAxisAlignment.start,
                  children: [
-                   const Text('Writer completed work. Please verify:',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
-                   const SizedBox(height: 12),
-                   if (request.verificationPhotos.isNotEmpty)
-                      SizedBox(
-                        height: 80,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          children: request.verificationPhotos.map((url) => Padding(
-                            padding: const EdgeInsets.only(right: 12.0),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(url, width: 80, height: 80, fit: BoxFit.cover),
-                            ),
-                          )).toList(),
-                        ),
-                      ),
                    const SizedBox(height: 16),
                    SizedBox(
                      width: double.infinity,
@@ -482,7 +633,7 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
                   child: ElevatedButton(
                     onPressed: () => _openCheckout(request, isFinal: true),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
+                      backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),

@@ -4,9 +4,17 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloudinary_public/cloudinary_public.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:photo_view/photo_view.dart';
 import '../../services/firestore_service.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../models/request_model.dart';
+
+final activeOrdersProvider = StreamProvider.autoDispose<List<RequestModel>>((ref) {
+  final user = ref.watch(currentUserStreamProvider).value;
+  if (user == null) return Stream.value([]);
+  return ref.watch(firestoreServiceProvider).getWriterRequestsStream(user.uid);
+});
 
 class WriterHomeScreen extends ConsumerStatefulWidget {
   const WriterHomeScreen({super.key});
@@ -19,17 +27,18 @@ class _WriterHomeScreenState extends ConsumerState<WriterHomeScreen> {
   bool _isUploading = false;
 
   Future<void> _uploadSampleWork(AppUser user) async {
-    if (user.sampleWorkUrls.length >= 4) {
+    final int currentCount = user.sampleWorkUrls.length;
+    if (currentCount >= 4) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You can only upload up to 4 sample photos.')));
       return;
     }
 
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.image,
-      allowMultiple: false,
+      allowMultiple: true,
     );
 
-    if (result != null && result.files.single.path != null) {
+    if (result != null && result.files.isNotEmpty) {
       if (!mounted) return;
       setState(() => _isUploading = true);
       try {
@@ -39,16 +48,28 @@ class _WriterHomeScreenState extends ConsumerState<WriterHomeScreen> {
           cache: false,
         );
 
-        CloudinaryResponse response = await cloudinary.uploadFile(
-          CloudinaryFile.fromFile(result.files.single.path!, resourceType: CloudinaryResourceType.Image),
-        );
+        final int availableSlots = 4 - currentCount;
+        final filesToUpload = result.files.take(availableSlots).toList();
 
-        final newUrl = response.secureUrl;
-        final updatedList = List<String>.from(user.sampleWorkUrls)..add(newUrl);
+        if (result.files.length > availableSlots) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Only the first $availableSlots selected photos will be uploaded.')));
+        }
+
+        List<String> newUrls = [];
+        for (var file in filesToUpload) {
+          if (file.path != null) {
+            CloudinaryResponse response = await cloudinary.uploadFile(
+              CloudinaryFile.fromFile(file.path!, resourceType: CloudinaryResourceType.Image),
+            );
+            newUrls.add(response.secureUrl);
+          }
+        }
+
+        final updatedList = List<String>.from(user.sampleWorkUrls)..addAll(newUrls);
 
         await ref.read(firestoreServiceProvider).updateUser(user.uid, {'sampleWorkUrls': updatedList});
 
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sample uploaded successfully!')));
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Samples uploaded successfully!')));
 
       } catch (e) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
@@ -67,17 +88,170 @@ class _WriterHomeScreenState extends ConsumerState<WriterHomeScreen> {
     }
   }
 
+  void _showImagePopup(String url) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(
+              width: MediaQuery.of(context).size.width,
+              height: MediaQuery.of(context).size.height,
+              child: PhotoView(
+                imageProvider: NetworkImage(url),
+                backgroundDecoration: const BoxDecoration(color: Colors.transparent),
+                minScale: PhotoViewComputedScale.contained,
+                maxScale: PhotoViewComputedScale.covered * 2,
+              ),
+            ),
+            Positioned(
+              top: 40,
+              right: 20,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close, color: Colors.white, size: 24),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<bool?> _showAvailabilityConfirmation(BuildContext context) async {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Confirm Action',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
+        ),
+        content: Text(
+          'Do you really want to change your availability ?',
+          style: GoogleFonts.outfit(),
+          textAlign: TextAlign.center,
+        ),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text('No', style: GoogleFonts.outfit(color: Colors.blue, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              Container(width: 1, height: 20, color: Colors.grey[300]),
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: Text('Yes', style: GoogleFonts.outfit(color: Colors.red, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final userAsync = ref.watch(currentUserStreamProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Writer Dashboard', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.black)),
         centerTitle: true,
         backgroundColor: const Color(0xFFFFAF00),
         elevation: 0,
         automaticallyImplyLeading: false,
+        leadingWidth: 150,
+        leading: Consumer(
+          builder: (context, ref, child) {
+            final ordersAsync = ref.watch(activeOrdersProvider);
+            return ordersAsync.when(
+              data: (orders) {
+                final activeCount = orders.where((o) => o.status != 'completed' && o.status != 'cancelled').length;
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 16.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Active Orders - $activeCount',
+                        style: GoogleFonts.outfit(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+              loading: () => const SizedBox(),
+              error: (_, __) => const SizedBox(),
+            );
+          },
+        ),
+        actions: [
+          userAsync.when(
+            data: (user) {
+              if (user == null) return const SizedBox();
+              return Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Row(
+                  children: [
+                    Text(
+                      user.isAvailable ? 'Available' : 'Unavailable',
+                      style: GoogleFonts.outfit(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Switch(
+                      value: user.isAvailable,
+                      onChanged: (value) async {
+                        final confirmed = await _showAvailabilityConfirmation(context);
+                        if (confirmed == true) {
+                          await ref.read(firestoreServiceProvider).updateUser(user.uid, {'isAvailable': value});
+                        }
+                      },
+                      activeColor: Colors.green,
+                      activeTrackColor: Colors.green.withValues(alpha: 0.3),
+                      inactiveThumbColor: Colors.red,
+                      inactiveTrackColor: Colors.red.withValues(alpha: 0.3),
+                    ),
+                  ],
+                ),
+              );
+            },
+            loading: () => const SizedBox(),
+            error: (_, __) => const SizedBox(),
+          ),
+        ],
       ),
       body: userAsync.when(
         data: (user) {
@@ -101,7 +275,22 @@ class _WriterHomeScreenState extends ConsumerState<WriterHomeScreen> {
                      style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.bold),
                    ),
                    const SizedBox(height: 8),
-                   Text('You have 0 active assignments.', style: GoogleFonts.outfit(fontSize: 16, color: Colors.grey[600])),
+                   Consumer(
+                     builder: (context, ref, child) {
+                       final ordersAsync = ref.watch(activeOrdersProvider);
+                       return ordersAsync.when(
+                         data: (orders) {
+                           final activeCount = orders.where((o) => o.status != 'completed' && o.status != 'cancelled').length;
+                           return Text(
+                             'You have $activeCount active assignments.',
+                             style: GoogleFonts.outfit(fontSize: 16, color: Colors.grey[600]),
+                           );
+                         },
+                         loading: () => Text('Loading assignments...', style: GoogleFonts.outfit(fontSize: 16, color: Colors.grey[600])),
+                         error: (_, __) => Text('Error loading assignments', style: GoogleFonts.outfit(fontSize: 16, color: Colors.grey[600])),
+                       );
+                     },
+                   ),
                    const SizedBox(height: 32),
 
                    SizedBox(
@@ -114,7 +303,11 @@ class _WriterHomeScreenState extends ConsumerState<WriterHomeScreen> {
                          padding: const EdgeInsets.symmetric(vertical: 16),
                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                        ),
-                       child: Text('Find Assignments', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                       child: Text(
+                         'Admin will assign you assignments if you are available',
+                         style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+                         textAlign: TextAlign.center,
+                       ),
                      ),
                    ),
 
@@ -151,10 +344,13 @@ class _WriterHomeScreenState extends ConsumerState<WriterHomeScreen> {
                          final url = user.sampleWorkUrls[index];
                          return Stack(
                            children: [
-                             Container(
-                               decoration: BoxDecoration(
-                                 borderRadius: BorderRadius.circular(12),
-                                 image: DecorationImage(image: NetworkImage(url), fit: BoxFit.cover),
+                             InkWell(
+                               onTap: () => _showImagePopup(url),
+                               child: Container(
+                                 decoration: BoxDecoration(
+                                   borderRadius: BorderRadius.circular(12),
+                                   image: DecorationImage(image: NetworkImage(url), fit: BoxFit.cover),
+                                 ),
                                ),
                              ),
                              Positioned(
@@ -176,19 +372,28 @@ class _WriterHomeScreenState extends ConsumerState<WriterHomeScreen> {
 
                    const SizedBox(height: 16),
 
-                   if (user.sampleWorkUrls.length < 4)
-                      ElevatedButton.icon(
-                        onPressed: _isUploading ? null : () => _uploadSampleWork(user),
-                        icon: _isUploading
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Icon(Icons.add_a_photo, size: 20),
-                        label: Text(_isUploading ? 'Uploading...' : 'Add Sample Photo'),
-                        style: ElevatedButton.styleFrom(
-                           backgroundColor: const Color(0xFFFFAF00),
-                           foregroundColor: Colors.white,
-                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
+                    if (user.sampleWorkUrls.length < 4)
+                       Column(
+                         children: [
+                           ElevatedButton.icon(
+                             onPressed: _isUploading ? null : () => _uploadSampleWork(user),
+                             icon: _isUploading
+                                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                 : const Icon(Icons.add_a_photo, size: 20),
+                             label: Text(_isUploading ? 'Uploading...' : 'Add Sample Photo'),
+                             style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFFAF00),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                             ),
+                           ),
+                           const SizedBox(height: 12),
+                           Text(
+                             'You can upload any 4 photoes as sample',
+                             style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey[500]),
+                           ),
+                         ],
+                       ),
                 ],
               ),
             ),

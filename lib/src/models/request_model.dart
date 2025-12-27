@@ -22,6 +22,9 @@ class RequestModel {
   final double paidAmount;
   final bool isHalfPayment; // If user chose half payment initially
   final List<String> verificationPhotos; // Photos uploaded by writer for review
+  final String? cancellationReason;
+  final String? estimatedDeliveryTime; // e.g. "Today 5 pm"
+  final DateTime? deliveryCompletedAt;
 
   RequestModel({
     required this.id,
@@ -46,6 +49,9 @@ class RequestModel {
     this.paidAmount = 0.0,
     this.isHalfPayment = false,
     this.verificationPhotos = const [],
+    this.cancellationReason,
+    this.estimatedDeliveryTime,
+    this.deliveryCompletedAt,
   });
 
   Map<String, dynamic> toMap() {
@@ -72,6 +78,9 @@ class RequestModel {
       'paidAmount': paidAmount,
       'isHalfPayment': isHalfPayment,
       'verificationPhotos': verificationPhotos,
+      'cancellationReason': cancellationReason,
+      'estimatedDeliveryTime': estimatedDeliveryTime,
+      'deliveryCompletedAt': deliveryCompletedAt?.millisecondsSinceEpoch,
     };
   }
 
@@ -99,6 +108,9 @@ class RequestModel {
       paidAmount: (map['paidAmount'] ?? 0).toDouble(),
       isHalfPayment: map['isHalfPayment'] ?? false,
       verificationPhotos: List<String>.from(map['verificationPhotos'] ?? []),
+      cancellationReason: map['cancellationReason'],
+      estimatedDeliveryTime: map['estimatedDeliveryTime'],
+      deliveryCompletedAt: map['deliveryCompletedAt'] != null ? DateTime.fromMillisecondsSinceEpoch(map['deliveryCompletedAt']) : null,
     );
   }
 }

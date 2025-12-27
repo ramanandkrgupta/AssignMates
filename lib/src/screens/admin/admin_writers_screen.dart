@@ -51,7 +51,20 @@ class AdminWritersScreen extends ConsumerWidget {
                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                  child: ListTile(
                    leading: CircleAvatar(backgroundImage: user.photoURL != null ? NetworkImage(user.photoURL!) : null, child: user.photoURL == null ? const Icon(Icons.person) : null),
-                   title: Text(user.displayName ?? 'Writer'),
+                   title: Row(
+                     children: [
+                       Text(user.displayName ?? 'Writer'),
+                       const SizedBox(width: 8),
+                       Container(
+                         width: 8,
+                         height: 8,
+                         decoration: BoxDecoration(
+                           color: user.isAvailable ? Colors.green : Colors.red,
+                           shape: BoxShape.circle,
+                         ),
+                       ),
+                     ],
+                   ),
                    subtitle: Text(user.email ?? ''),
                    trailing: const Icon(Icons.chevron_right),
                    onTap: () {

@@ -16,6 +16,7 @@ class AppUser extends Equatable {
   final DateTime createdAt;
   final String? fcmToken;
   final List<String> sampleWorkUrls; // URLs of uploaded sample work (max 4)
+  final bool isAvailable;
 
   const AppUser({
     required this.uid,
@@ -32,6 +33,7 @@ class AppUser extends Equatable {
     required this.createdAt,
     this.fcmToken,
     this.sampleWorkUrls = const [],
+    this.isAvailable = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -50,6 +52,7 @@ class AppUser extends Equatable {
       'createdAt': createdAt.millisecondsSinceEpoch,
       'fcmToken': fcmToken,
       'sampleWorkUrls': sampleWorkUrls,
+      'isAvailable': isAvailable,
     };
   }
 
@@ -69,6 +72,7 @@ class AppUser extends Equatable {
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
       fcmToken: map['fcmToken'],
       sampleWorkUrls: List<String>.from(map['sampleWorkUrls'] ?? []),
+      isAvailable: map['isAvailable'] ?? false,
     );
   }
 
@@ -88,5 +92,6 @@ class AppUser extends Equatable {
         createdAt,
         fcmToken,
         sampleWorkUrls,
+        isAvailable,
       ];
 }

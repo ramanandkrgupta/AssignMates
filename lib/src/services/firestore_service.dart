@@ -56,6 +56,16 @@ class FirestoreService {
     });
   }
 
+  Stream<List<RequestModel>> getWriterRequestsStream(String writerId) {
+    return _db
+        .collection('requests')
+        .where('assignedWriterId', isEqualTo: writerId)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => RequestModel.fromMap(doc.data())).toList();
+    });
+  }
+
   Future<List<AppUser>> getAllUsers() async {
     final snapshot = await _db.collection('users').get();
     return snapshot.docs.map((doc) => AppUser.fromMap(doc.data())).toList();
@@ -64,7 +74,11 @@ class FirestoreService {
     await _db.collection('requests').doc(requestId).update(data);
   }
   Future<void> updateUserRole(String uid, String role) async {
-    await _db.collection('users').doc(uid).update({'role': role});
+    final data = <String, dynamic>{'role': role};
+    if (role == 'writer') {
+      data['isAvailable'] = true;
+    }
+    await _db.collection('users').doc(uid).update(data);
   }
   Future<void> updateRequestStatus(String requestId, String status, {Map<String, dynamic>? additionalData}) async {
     final data = <String, dynamic>{'status': status};

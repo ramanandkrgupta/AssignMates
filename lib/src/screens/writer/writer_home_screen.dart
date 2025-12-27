@@ -7,6 +7,13 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../services/firestore_service.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../models/request_model.dart';
+
+final activeOrdersProvider = StreamProvider.autoDispose<List<RequestModel>>((ref) {
+  final user = ref.watch(currentUserStreamProvider).value;
+  if (user == null) return Stream.value([]);
+  return ref.watch(firestoreServiceProvider).getWriterRequestsStream(user.uid);
+});
 
 class WriterHomeScreen extends ConsumerStatefulWidget {
   const WriterHomeScreen({super.key});
@@ -73,11 +80,78 @@ class _WriterHomeScreenState extends ConsumerState<WriterHomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Writer Dashboard', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.black)),
         centerTitle: true,
         backgroundColor: const Color(0xFFFFAF00),
         elevation: 0,
         automaticallyImplyLeading: false,
+        leadingWidth: 150,
+        leading: Consumer(
+          builder: (context, ref, child) {
+            final ordersAsync = ref.watch(activeOrdersProvider);
+            return ordersAsync.when(
+              data: (orders) {
+                final activeCount = orders.where((o) => o.status != 'completed' && o.status != 'cancelled').length;
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 16.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Active Orders - $activeCount',
+                        style: GoogleFonts.outfit(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+              loading: () => const SizedBox(),
+              error: (_, __) => const SizedBox(),
+            );
+          },
+        ),
+        actions: [
+          userAsync.when(
+            data: (user) {
+              if (user == null) return const SizedBox();
+              return Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Row(
+                  children: [
+                    Text(
+                      user.isAvailable ? 'Available' : 'Unavailable',
+                      style: GoogleFonts.outfit(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Switch(
+                      value: user.isAvailable,
+                      onChanged: (value) async {
+                        await ref.read(firestoreServiceProvider).updateUser(user.uid, {'isAvailable': value});
+                      },
+                      activeColor: Colors.green,
+                      activeTrackColor: Colors.green.withValues(alpha: 0.3),
+                      inactiveThumbColor: Colors.red,
+                      inactiveTrackColor: Colors.red.withValues(alpha: 0.3),
+                    ),
+                  ],
+                ),
+              );
+            },
+            loading: () => const SizedBox(),
+            error: (_, __) => const SizedBox(),
+          ),
+        ],
       ),
       body: userAsync.when(
         data: (user) {
@@ -101,7 +175,22 @@ class _WriterHomeScreenState extends ConsumerState<WriterHomeScreen> {
                      style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.bold),
                    ),
                    const SizedBox(height: 8),
-                   Text('You have 0 active assignments.', style: GoogleFonts.outfit(fontSize: 16, color: Colors.grey[600])),
+                   Consumer(
+                     builder: (context, ref, child) {
+                       final ordersAsync = ref.watch(activeOrdersProvider);
+                       return ordersAsync.when(
+                         data: (orders) {
+                           final activeCount = orders.where((o) => o.status != 'completed' && o.status != 'cancelled').length;
+                           return Text(
+                             'You have $activeCount active assignments.',
+                             style: GoogleFonts.outfit(fontSize: 16, color: Colors.grey[600]),
+                           );
+                         },
+                         loading: () => Text('Loading assignments...', style: GoogleFonts.outfit(fontSize: 16, color: Colors.grey[600])),
+                         error: (_, __) => Text('Error loading assignments', style: GoogleFonts.outfit(fontSize: 16, color: Colors.grey[600])),
+                       );
+                     },
+                   ),
                    const SizedBox(height: 32),
 
                    SizedBox(

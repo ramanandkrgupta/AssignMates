@@ -10,7 +10,7 @@ import '../../models/user_model.dart'; // Ensure UserModel is imported
 import '../student/profile_screen.dart'; // Reusing Profile Screen
 
 import 'writer_home_screen.dart';
-import 'writer_history_screen.dart';
+import 'writer_orders_screen.dart';
 import 'writer_messages_screen.dart';
 
 class WriterDashboardScreen extends ConsumerStatefulWidget {
@@ -29,7 +29,7 @@ class _WriterDashboardScreenState extends ConsumerState<WriterDashboardScreen> {
     // Writer Screens
     final List<Widget> screens = [
       const WriterHomeScreen(),
-      const WriterHistoryScreen(),
+      const WriterOrdersScreen(),
       const WriterMessagesScreen(),
        const ProfileScreen(), // Reuse generic profile screen
     ];
@@ -62,9 +62,9 @@ class _WriterDashboardScreenState extends ConsumerState<WriterDashboardScreen> {
               label: 'Home',
             ),
             NavigationDestination(
-              icon: Icon(Icons.history_outlined),
-              selectedIcon: Icon(Icons.history),
-              label: 'History',
+              icon: Icon(Icons.assignment_outlined),
+              selectedIcon: Icon(Icons.assignment),
+              label: 'Orders',
             ),
              NavigationDestination(
               icon: Icon(Icons.forum_outlined),

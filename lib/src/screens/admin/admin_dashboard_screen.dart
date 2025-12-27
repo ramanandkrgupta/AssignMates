@@ -6,6 +6,7 @@ import 'admin_orders_screen.dart';
 import 'admin_enquiries_screen.dart';
 import 'admin_writers_screen.dart';
 import 'admin_users_screen.dart';
+import 'admin_pricing_screen.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -27,6 +28,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       const AdminEnquiriesScreen(),
       const AdminWritersScreen(),
       const AdminUsersScreen(),
+      const AdminPricingScreen(),
     ];
 
     return Scaffold(
@@ -69,6 +71,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               icon: Icon(Icons.manage_accounts_outlined),
               selectedIcon: Icon(Icons.manage_accounts),
               label: 'Users',
+            ),
+             NavigationDestination(
+              icon: Icon(Icons.currency_rupee_outlined),
+              selectedIcon: Icon(Icons.currency_rupee),
+              label: 'Pricing',
             ),
           ],
         ),

@@ -92,7 +92,27 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('External Wallet: ${response.walletName}')));
   }
 
-  void _openCheckout(RequestModel request, {bool isHalf = false, bool isFull = false, bool isFinal = false}) {
+  void _openCheckout(RequestModel request, {bool isHalf = false, bool isFull = false, bool isFinal = false}) async {
+    // Fetch user details for prefill
+    String contact = '';
+    String email = '';
+    final authUser = ref.read(authStateProvider).value;
+    
+    if (authUser != null) {
+      email = authUser.email ?? '';
+      contact = authUser.phoneNumber ?? '';
+      
+      try {
+        final appUser = await ref.read(firestoreServiceProvider).getUser(authUser.uid);
+        if (appUser != null) {
+          if (appUser.phoneNumber != null && appUser.phoneNumber!.isNotEmpty) contact = appUser.phoneNumber!;
+          if (appUser.email != null && appUser.email!.isNotEmpty) email = appUser.email!;
+        }
+      } catch (e) {
+        debugPrint('Error fetching user for prefill: $e');
+      }
+    }
+
     _pendingRequest = request;
     _pendingPaymentType = isHalf ? 'half' : (isFinal ? 'final' : 'full');
 
@@ -111,8 +131,8 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
       'name': 'AssignMates',
       'description': 'Payment for Request #${request.id}',
       'prefill': {
-        'contact': '',
-        'email': ''
+        'contact': contact,
+        'email': email
       },
       'notes': {
         'requestId': request.id,

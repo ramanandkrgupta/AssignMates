@@ -325,8 +325,7 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> with Sing
                       Icons.map_outlined,
                       student?.location ?? 'No location provided',
                       onCopy: () {
-                        Clipboard.setData(ClipboardData(text: student?.location ?? ''));
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location copied!')));
+                        Clipboard.setData(ClipboardData(text: student?.location ?? ''));ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location copied!')));
                       },
                       label: 'Location',
                     ),

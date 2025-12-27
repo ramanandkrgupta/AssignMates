@@ -27,32 +27,58 @@ class NotificationService {
   NotificationService(this._ref);
 
   Future<void> init() async {
-    // 1. Request Permission
-    await _fcm.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    // 2. Init Local Notifications for Foreground
+    // 1. Init Local Notifications for Foreground
     const androidInit = AndroidInitializationSettings('@drawable/am_notif_icon');
     const iosInit = DarwinInitializationSettings();
     await _localNotifications.initialize(
       const InitializationSettings(android: androidInit, iOS: iosInit),
     );
 
-    // 3. Listen for Foreground Messages
+    // 2. Listen for Foreground Messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       _showLocalNotification(message);
     });
   }
 
+  /// Called on first app launch during onboarding
+  Future<void> startEarlyPermissionRequest() async {
+    print("Requesting early notification permission...");
+    NotificationSettings settings = await _fcm.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      print('User granted permission');
+      // Attempt to get text token immediately and save it if user is logged in
+      // or at least cache it internally by FCM SDK
+      await _checkAndSyncToken();
+    } else {
+      print('User declined or has not accepted permission');
+    }
+  }
+
   Future<void> updateToken(String uid) async {
+    await _checkAndSyncToken(uid: uid);
+  }
+
+  Future<void> _checkAndSyncToken({String? uid}) async {
     try {
       String? token = await _fcm.getToken();
-      if (token != null) {
+      
+      // If specific UID provided, sync to that user
+      if (uid != null && token != null) {
         await _ref.read(firestoreServiceProvider).updateFcmToken(uid, token);
-        print('FCM Token Updated for $uid');
+         print('FCM Token Sync (Explicit UID) for $uid');
+      } 
+      // Otherwise, if we can find a current user from auth provider, sync
+      else if (token != null) {
+        final user = _ref.read(authStateProvider).value;
+        if (user != null) {
+          await _ref.read(firestoreServiceProvider).updateFcmToken(user.uid, token);
+          print('FCM Token Sync (Auth Provider) for ${user.uid}');
+        }
       }
     } catch (e) {
       print('Error updating token: $e');

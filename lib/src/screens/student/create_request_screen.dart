@@ -18,6 +18,7 @@ import '../../models/request_model.dart';
 import '../../models/user_model.dart';
 import '../../services/notification_service.dart';
 import '../home/home_screen.dart';
+import '../../models/pricing_model.dart';
 
 class CreateRequestScreen extends ConsumerStatefulWidget {
   const CreateRequestScreen({super.key});
@@ -56,6 +57,8 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   // Pricing Logic
   String _pageType = 'A4'; // 'A4' or 'EdSheet'
   double _estimatedPrice = 0.0;
+  PricingModel? _currentPricing;
+  bool _isLoadingPricing = false;
 
   // Instruction Video
   VideoPlayerController? _videoController;
@@ -67,7 +70,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     _initRecorder();
     // Default deadline 4 days from now
     _deadline = DateTime.now().add(const Duration(days: 4));
-    _calculateEstimate();
+    // _calculateEstimate(); // Will be called after pricing is fetched
     _listControllers.add(TextEditingController()); // Start with one point
     _initVideoPlayer();
   }
@@ -82,6 +85,24 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     _videoController!.play(); // Autoplay
     setState(() {});
     }
+
+  Future<void> _fetchPricing(String? city) async {
+      if (_isLoadingPricing) return;
+      setState(() => _isLoadingPricing = true);
+      try {
+        final pricing = await ref.read(firestoreServiceProvider).getPricing(city ?? 'Default');
+        if (mounted) {
+          setState(() {
+            _currentPricing = pricing;
+            _isLoadingPricing = false;
+            _calculateEstimate();
+          });
+        }
+      } catch (e) {
+        debugPrint('Error fetching pricing: $e');
+        if (mounted) setState(() => _isLoadingPricing = false);
+      }
+  }
 
   Future<void> _initRecorder() async {
     _recorder = FlutterSoundRecorder();
@@ -221,19 +242,19 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   }
 
   void _calculateEstimate() {
-    if (_deadline == null) return;
+    if (_deadline == null || _currentPricing == null) return;
 
     final days = _deadline!.difference(DateTime.now()).inDays + 1;
 
     if (_pageType == 'EdSheet') {
-      _estimatedPrice = 230.0 * _pageCount; // Fixed per page
+      _estimatedPrice = _currentPricing!.edSheetPrice * _pageCount;
     } else {
       // Assignment
-      double pricePerPage = 4.0;
+      double pricePerPage = _currentPricing!.a4BasePrice;
       if (days < 4) {
-        if (days == 3) pricePerPage += 1; // 5
-        if (days == 2) pricePerPage += 2; // 6
-        if (days <= 1) pricePerPage += 3; // 7
+        if (days == 3) pricePerPage += _currentPricing!.surcharge3Days;
+        if (days == 2) pricePerPage += _currentPricing!.surcharge2Days;
+        if (days <= 1) pricePerPage += _currentPricing!.surcharge1Day;
       }
       _estimatedPrice = pricePerPage * _pageCount;
     }
@@ -477,6 +498,16 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     // User validation for buttons
     bool hasMobile = user?.phoneNumber != null && user!.phoneNumber!.isNotEmpty;
     bool hasLocation = user?.location != null && user!.location!.isNotEmpty;
+
+    // Fetch pricing if user is loaded and we haven't yet
+    if (user != null && _currentPricing == null && !_isLoadingPricing) {
+       // Defer to next frame to avoid setState during build if needed, 
+       // but since _fetchPricing is async and starts with await (or check), it's fine usually.
+       // However, scheduling it is safer.
+       WidgetsBinding.instance.addPostFrameCallback((_) {
+          _fetchPricing(user.city);
+       });
+    }
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -866,7 +897,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                  child: hasLocation
                  ? ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: Text(user.location!, style: const TextStyle(color: Colors.white), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    title: Text(user!.location ?? 'Unknown Location', style: const TextStyle(color: Colors.white), maxLines: 2, overflow: TextOverflow.ellipsis),
                     trailing: TextButton(onPressed: () => _updateContactDetails(user), child: const Text('Edit', style: TextStyle(color: Color(0xFFFFAF00)))),
                    )
                  : ElevatedButton(

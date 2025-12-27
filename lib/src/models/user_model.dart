@@ -1,4 +1,4 @@
-
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 
 class AppUser extends Equatable {
@@ -85,7 +85,7 @@ class AppUser extends Equatable {
         role,
         collegeId,
         city,
-         phoneNumber,
+        phoneNumber,
         location,
         isWriterApproved,
         rating,

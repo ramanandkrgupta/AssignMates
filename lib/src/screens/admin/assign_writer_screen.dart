@@ -4,7 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/request_model.dart';
 import '../../models/user_model.dart';
+import '../../models/user_model.dart';
 import '../../services/firestore_service.dart';
+import '../../models/pricing_model.dart';
 
 class AssignWriterScreen extends ConsumerWidget {
   final RequestModel request;
@@ -65,7 +67,7 @@ class AssignWriterScreen extends ConsumerWidget {
                           backgroundImage: writer.photoURL != null ? NetworkImage(writer.photoURL!) : null,
                           child: writer.photoURL == null ? const Icon(Icons.person, color: Color(0xFFFFAF00), size: 30) : null,
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,27 +106,39 @@ class AssignWriterScreen extends ConsumerWidget {
                                 }
                               },
                             ),
-                            const SizedBox(width: 8),
-                            ElevatedButton(
+                            const SizedBox(width: 4),
+                              ElevatedButton(
                               onPressed: () async {
-                                final budgetController = TextEditingController();
-                                // Calculate estimate (replicating logic from CreateRequestScreen)
-                                double estPrice = 0.0;
-                                final deadline = request.deadline;
-                                final days = deadline.difference(DateTime.now()).inDays + 1;
+                                // Show loading? For now just await
+                                try {
+                                  final firestore = ref.read(firestoreServiceProvider);
+                                  
+                                  // 1. Fetch Student for City
+                                  final student = await firestore.getUser(request.studentId);
+                                  final city = student?.city ?? 'Default';
+                                  
+                                  // 2. Fetch Pricing
+                                  final pricing = await firestore.getPricing(city);
+                                  
+                                  // 3. Calculate Estimate
+                                  final budgetController = TextEditingController();
+                                  double estPrice = 0.0;
+                                  final deadline = request.deadline;
+                                  final days = deadline.difference(DateTime.now()).inDays + 1;
 
-                                if (request.pageType == 'EdSheet') {
-                                  estPrice = 230.0 * request.pageCount;
-                                } else {
-                                  double pricePerPage = 4.0;
-                                  if (days < 4) {
-                                    if (days == 3) pricePerPage += 1;
-                                    if (days == 2) pricePerPage += 2;
-                                    if (days <= 1) pricePerPage += 3;
+                                  if (request.pageType == 'EdSheet') {
+                                    estPrice = pricing.edSheetPrice * request.pageCount;
+                                  } else {
+                                    // Assignment
+                                    double pricePerPage = pricing.a4BasePrice;
+                                    if (days < 4) {
+                                      if (days == 3) pricePerPage += pricing.surcharge3Days;
+                                      if (days == 2) pricePerPage += pricing.surcharge2Days;
+                                      if (days <= 1) pricePerPage += pricing.surcharge1Day;
+                                    }
+                                    estPrice = pricePerPage * request.pageCount;
                                   }
-                                  estPrice = pricePerPage * request.pageCount;
-                                }
-                                budgetController.text = estPrice.toStringAsFixed(0);
+                                  budgetController.text = estPrice.toStringAsFixed(0);
 
                                 final result = await showDialog<Map<String, dynamic>>(
                                   context: context,
@@ -173,30 +187,34 @@ class AssignWriterScreen extends ConsumerWidget {
                                   ),
                                 );
 
-                                if (result != null) {
-                                  final double finalBudget = result['budget'];
-                                  await ref.read(firestoreServiceProvider).updateRequestStatus(
-                                    request.id,
-                                    'assigned',
-                                    additionalData: {
-                                      'assignedWriterId': writer.uid,
-                                      'budget': finalBudget,
-                                      'finalAmount': finalBudget,
-                                    }
-                                  );
-                                  if (context.mounted) {
-                                    Navigator.pop(context);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Order assigned with budget ₹${finalBudget.toStringAsFixed(0)}'))
+                                  if (result != null) {
+                                    final double finalBudget = result['budget'];
+                                    await ref.read(firestoreServiceProvider).updateRequestStatus(
+                                      request.id,
+                                      'assigned',
+                                      additionalData: {
+                                        'assignedWriterId': writer.uid,
+                                        'budget': finalBudget,
+                                        'finalAmount': finalBudget,
+                                      }
                                     );
+                                    if (context.mounted) {
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Order assigned with budget ₹${finalBudget.toStringAsFixed(0)}'))
+                                      );
+                                    }
                                   }
+                                } catch (e) {
+                                  debugPrint('Error preparing assignment: $e');
+                                  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
                                 }
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFFFAF00),
                                 foregroundColor: Colors.black,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
                               ),
                               child: Text('ASSIGN', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
                             ),

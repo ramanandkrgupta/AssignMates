@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user_model.dart';
 import '../models/request_model.dart';
 import '../models/notification_model.dart';
+import '../models/pricing_model.dart';
+
 
 final firestoreProvider = Provider<FirebaseFirestore>((ref) {
   return FirebaseFirestore.instance;
@@ -139,6 +141,48 @@ class FirestoreService {
 
   Future<void> deleteNotification(String notificationId) async {
     await _db.collection('notifications').doc(notificationId).delete();
+  }
+
+  // --- Pricing Methods ---
+
+  Future<void> setPricing(PricingModel pricing) async {
+    print('FirestoreService: Setting pricing for ${pricing.id} with data: ${pricing.toMap()}');
+    // Use the pricing.id (which should be city name lowercased or unique id) as doc id
+    await _db.collection('pricing').doc(pricing.id).set(pricing.toMap());
+  }
+
+  Future<PricingModel> getPricing(String city) async {
+    try {
+      // 1. Try case-insensitive match if possible, but for now exact match on field
+      final snapshot = await _db.collection('pricing').where('city', isEqualTo: city).limit(1).get();
+      if (snapshot.docs.isNotEmpty) {
+        return PricingModel.fromMap(snapshot.docs.first.data());
+      }
+      
+      // 2. Fetch default
+      final defaultSnapshot = await _db.collection('pricing').doc('default').get();
+      if (defaultSnapshot.exists) {
+        return PricingModel.fromMap(defaultSnapshot.data()!);
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // 3. Code default
+    return PricingModel.defaultPricing();
+  }
+
+  Stream<List<PricingModel>> getAllPricingStream() {
+    print('FirestoreService: Listening to getAllPricingStream');
+    return _db.collection('pricing').snapshots().map((snapshot) {
+      print('FirestoreService: Pricing snapshot received. Docs: ${snapshot.docs.length}');
+      return snapshot.docs.map((doc) => PricingModel.fromMap(doc.data())).toList();
+    });
+  }
+
+  Future<void> deletePricing(String id) async {
+    if (id == 'default') return; // Protect default
+    await _db.collection('pricing').doc(id).delete();
   }
 }
 

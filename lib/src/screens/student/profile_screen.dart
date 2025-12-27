@@ -167,7 +167,7 @@ class ProfileScreen extends ConsumerWidget {
             ),
 
             const SizedBox(height: 32),
-            _buildSettingsItem(context, Icons.history, 'Order History'),
+            _buildSettingsItem(context, Icons.history, 'Notification History'),
             _buildSettingsItem(context, Icons.help_outline, 'Help & Support'),
             _buildSettingsItem(context, Icons.privacy_tip_outlined, 'Privacy Policy'),
 

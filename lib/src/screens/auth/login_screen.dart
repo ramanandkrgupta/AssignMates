@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../services/notification_service.dart';
 import '../home/home_screen.dart';
 import 'loading_screen.dart';
 import 'profile_setup_screen.dart';
@@ -30,6 +31,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) {
         final authUser = ref.read(authStateProvider).value;
         if (authUser != null) {
+          // Sync FCM Token immediately
+          await ref.read(notificationServiceProvider).updateToken(authUser.uid);
+
           final firestore = ref.read(firestoreServiceProvider);
           final appUser = await firestore.getUser(authUser.uid);
 

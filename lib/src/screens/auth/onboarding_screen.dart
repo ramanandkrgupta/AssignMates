@@ -3,16 +3,41 @@ import 'package:lottie/lottie.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'login_screen.dart';
 
-class OnboardingScreen extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
+import '../../services/notification_service.dart';
+
+class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
   @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Fire and forget early permission request
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // 1. Notification Permission
+      ref.read(notificationServiceProvider).startEarlyPermissionRequest();
+      
+      // 2. Location Permission (Silent check/request)
+      try {
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          // Request permission
+          await Geolocator.requestPermission();
+        }
+      } catch (e) {
+        debugPrint("Error requesting early location permission: $e");
+      }
+    });
+  }
 
   final List<Map<String, String>> _onboardingData = [
     {

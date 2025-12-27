@@ -41,7 +41,9 @@ class NotificationModel {
       senderId: map['senderId'],
       title: map['title'] ?? '',
       body: map['body'] ?? '',
-      createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
+      createdAt: map['createdAt'] is Timestamp
+          ? (map['createdAt'] as Timestamp).toDate()
+          : DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
       isRead: map['isRead'] ?? false,
       status: map['status'] ?? 'pending',
     );

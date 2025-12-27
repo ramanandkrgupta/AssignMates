@@ -21,6 +21,8 @@ class RequestHistoryScreen extends ConsumerStatefulWidget {
 
 class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
   late Razorpay _razorpay;
+  RequestModel? _pendingRequest;
+  String? _pendingPaymentType; // 'half', 'full', 'final'
 
   @override
   void initState() {
@@ -37,8 +39,49 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
     _razorpay.clear();
   }
 
-  void _handlePaymentSuccess(PaymentSuccessResponse response) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment Success: ${response.paymentId}')));
+  void _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    if (_pendingRequest != null && _pendingPaymentType != null) {
+      final firestoreService = ref.read(firestoreServiceProvider);
+      final req = _pendingRequest!;
+
+      Map<String, dynamic> updateData = {};
+
+      if (_pendingPaymentType == 'half') {
+        updateData = {
+          'status': 'in_progress',
+          'paymentStatus': 'half_paid',
+          'paidAmount': (req.budget / 2),
+          'isHalfPayment': true,
+        };
+      } else if (_pendingPaymentType == 'full') {
+        updateData = {
+          'status': 'in_progress',
+          'paymentStatus': 'fully_paid',
+          'paidAmount': req.budget,
+          'isHalfPayment': false,
+        };
+      } else if (_pendingPaymentType == 'final') {
+        updateData = {
+          'status': 'delivering',
+          'paymentStatus': 'fully_paid',
+          'paidAmount': req.budget,
+        };
+      }
+
+      await firestoreService.updateRequest(req.id, updateData);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Payment Successful! Order updated.', style: TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: Colors.green,
+        ));
+      }
+
+      _pendingRequest = null;
+      _pendingPaymentType = null;
+    } else {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment Success: ${response.paymentId}')));
+    }
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
@@ -50,6 +93,9 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
   }
 
   void _openCheckout(RequestModel request, {bool isHalf = false, bool isFull = false, bool isFinal = false}) {
+    _pendingRequest = request;
+    _pendingPaymentType = isHalf ? 'half' : (isFinal ? 'final' : 'full');
+
     int amountInPaise = 0;
     if (isFinal) {
       amountInPaise = ((request.budget - request.paidAmount) * 100).toInt();
@@ -216,31 +262,29 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
     int currentStep = 0;
     switch (request.status) {
       case 'created':
-        currentStep = 1; // Order Placed done, Admin Verification active
+        currentStep = 1;
         break;
       case 'verified':
-        currentStep = 2; // Admin Verification done, Writer Assigned active
+        currentStep = 2;
         break;
       case 'assigned':
-        currentStep = 3; // Writer Assigned done, Payment active
-        break;
       case 'payment_pending':
-        currentStep = 3; // Waiting for payment
+        currentStep = 3;
         break;
       case 'in_progress':
-        currentStep = 5; // Payment & Started done, Writer Completion active
+        currentStep = 4;
         break;
       case 'review_pending':
-        currentStep = 6; // Writer Completion done, Final Payment active
+        currentStep = request.isHalfPayment ? 6 : 7;
         break;
       case 'payment_remaining_pending':
-        currentStep = 6; // Waiting for final payment
+        currentStep = 6;
         break;
       case 'delivering':
-        currentStep = 8; // Delivering done, Order Completed active
+        currentStep = 7;
         break;
       case 'completed':
-        currentStep = 9; // All steps done
+        currentStep = 9;
         break;
       case 'cancelled':
         currentStep = -1;
@@ -414,8 +458,70 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
                 ),
               ),
 
+             // Work Verification Photos
+             if (request.verificationPhotos.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('WORK DONE PROOF', style: GoogleFonts.outfit(color: const Color(0xFFFFAF00), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      height: 100,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: request.verificationPhotos.length,
+                        itemBuilder: (context, i) => GestureDetector(
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MediaViewerScreen(urls: request.verificationPhotos, title: 'Writer Proof', initialIndex: i))),
+                          child: Container(
+                            margin: const EdgeInsets.only(right: 10),
+                            width: 100,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              image: DecorationImage(image: NetworkImage(request.verificationPhotos[i]), fit: BoxFit.cover),
+                              border: Border.all(color: Colors.white10),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+             // Estimated Delivery Time
+             if (request.estimatedDeliveryTime != null && request.status != 'completed' && request.status != 'cancelled')
+              Padding(
+                padding: const EdgeInsets.only(top: 20),
+                child: Container(
+                   padding: const EdgeInsets.all(16),
+                   decoration: BoxDecoration(
+                     color: const Color(0xFFFFAF00).withOpacity(0.1),
+                     borderRadius: BorderRadius.circular(16),
+                     border: Border.all(color: const Color(0xFFFFAF00).withOpacity(0.2)),
+                   ),
+                   child: Row(
+                     children: [
+                       const Icon(Icons.delivery_dining, color: Color(0xFFFFAF00)),
+                       const SizedBox(width: 12),
+                       Expanded(
+                         child: Column(
+                           crossAxisAlignment: CrossAxisAlignment.start,
+                           children: [
+                             Text('ESTIMATED DELIVERY', style: GoogleFonts.outfit(color: const Color(0xFFFFAF00), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                             Text(request.estimatedDeliveryTime!, style: GoogleFonts.outfit(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                           ],
+                         ),
+                       ),
+                     ],
+                   ),
+                ),
+              ),
+
+             const SizedBox(height: 20),
              // Payment Step
-             if (request.status == 'payment_pending')
+             if (request.status == 'assigned' || request.status == 'payment_pending')
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -427,6 +533,21 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: const Text('Make Payment', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+              ),
+
+             if (request.status == 'payment_remaining_pending')
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () => _openCheckout(request, isFinal: true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFAF00),
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Pay Remaining Balance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 ),
               ),
 
@@ -499,23 +620,6 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
                Column(
                  crossAxisAlignment: CrossAxisAlignment.start,
                  children: [
-                   const Text('Writer completed work. Please verify:',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
-                   const SizedBox(height: 12),
-                   if (request.verificationPhotos.isNotEmpty)
-                      SizedBox(
-                        height: 80,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          children: request.verificationPhotos.map((url) => Padding(
-                            padding: const EdgeInsets.only(right: 12.0),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(url, width: 80, height: 80, fit: BoxFit.cover),
-                            ),
-                          )).toList(),
-                        ),
-                      ),
                    const SizedBox(height: 16),
                    SizedBox(
                      width: double.infinity,

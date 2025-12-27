@@ -414,6 +414,11 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> with Sing
                     ),
 
                     const SizedBox(height: 15),
+                    // Delivery Info for Admin
+                    if (request.status == 'review_pending' || request.status == 'payment_remaining_pending' || request.status == 'delivering')
+                      _buildDeliveryManagement(context, request),
+
+                    const SizedBox(height: 15),
                     // Verification Action Bar
                     if (!request.isPageCountVerified && request.status != 'cancelled')
                       _buildVerificationBar(request),
@@ -425,6 +430,78 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> with Sing
           ),
         );
       },
+    );
+  }
+
+  Widget _buildDeliveryManagement(BuildContext context, RequestModel request) {
+    final deliveryController = TextEditingController(text: request.estimatedDeliveryTime ?? '');
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('DELIVERY MANAGEMENT', style: GoogleFonts.outfit(color: const Color(0xFFFFAF00), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: deliveryController,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Today 5 pm',
+                    hintStyle: const TextStyle(color: Colors.white24),
+                    labelText: 'Est. Delivery Time',
+                    labelStyle: const TextStyle(color: Color(0xFFFFAF00), fontSize: 12),
+                    isDense: true,
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white12)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFFFAF00))),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              IconButton(
+                icon: const Icon(Icons.save, color: Color(0xFFFFAF00)),
+                onPressed: () async {
+                   await ref.read(firestoreServiceProvider).updateRequest(request.id, {
+                     'estimatedDeliveryTime': deliveryController.text,
+                   });
+                   if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delivery time updated!')));
+                },
+              ),
+            ],
+          ),
+          if (request.status == 'delivering')
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    await ref.read(firestoreServiceProvider).updateRequestStatus(
+                      request.id,
+                      'completed',
+                      additionalData: {'deliveryCompletedAt': DateTime.now().millisecondsSinceEpoch}
+                    );
+                    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order marked as Completed!')));
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('MARK DELIVERY COMPLETED', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 

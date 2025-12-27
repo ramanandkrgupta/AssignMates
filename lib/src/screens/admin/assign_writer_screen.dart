@@ -107,32 +107,87 @@ class AssignWriterScreen extends ConsumerWidget {
                             const SizedBox(width: 8),
                             ElevatedButton(
                               onPressed: () async {
-                                final confirm = await showDialog<bool>(
+                                final budgetController = TextEditingController();
+                                // Calculate estimate (replicating logic from CreateRequestScreen)
+                                double estPrice = 0.0;
+                                final deadline = request.deadline;
+                                final days = deadline.difference(DateTime.now()).inDays + 1;
+
+                                if (request.pageType == 'EdSheet') {
+                                  estPrice = 230.0 * request.pageCount;
+                                } else {
+                                  double pricePerPage = 4.0;
+                                  if (days < 4) {
+                                    if (days == 3) pricePerPage += 1;
+                                    if (days == 2) pricePerPage += 2;
+                                    if (days <= 1) pricePerPage += 3;
+                                  }
+                                  estPrice = pricePerPage * request.pageCount;
+                                }
+                                budgetController.text = estPrice.toStringAsFixed(0);
+
+                                final result = await showDialog<Map<String, dynamic>>(
                                   context: context,
                                   builder: (context) => AlertDialog(
                                     backgroundColor: const Color(0xFF1E1E1E),
-                                    title: Text('Confirm Assignment', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
-                                    content: Text('Do you want to assign this order to ${writer.displayName}?', style: GoogleFonts.outfit(color: Colors.white70)),
+                                    title: Text('Set Final Budget', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+                                    content: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('Pages: ${request.pageCount} | Type: ${request.pageType}', style: GoogleFonts.outfit(color: Colors.white70, fontSize: 13)),
+                                        Text('Estimated Price: ₹${estPrice.toStringAsFixed(0)}', style: GoogleFonts.outfit(color: Colors.white38, fontSize: 12)),
+                                        const SizedBox(height: 20),
+                                        Text('Final Budget (incl. delivery):', style: GoogleFonts.outfit(color: const Color(0xFFFFAF00), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                                        const SizedBox(height: 8),
+                                        TextField(
+                                          controller: budgetController,
+                                          keyboardType: TextInputType.number,
+                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                          decoration: InputDecoration(
+                                            filled: true,
+                                            fillColor: Colors.white.withOpacity(0.05),
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white12)),
+                                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white12)),
+                                            prefixText: '₹ ',
+                                            prefixStyle: const TextStyle(color: Color(0xFFFFAF00), fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                     actions: [
-                                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL', style: TextStyle(color: Colors.grey))),
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(context, true),
-                                        child: const Text('ASSIGN', style: TextStyle(color: Color(0xFFFFAF00), fontWeight: FontWeight.bold)),
+                                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL', style: TextStyle(color: Colors.grey))),
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          final budget = double.tryParse(budgetController.text) ?? estPrice;
+                                          Navigator.pop(context, {'budget': budget});
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFFFFAF00),
+                                          foregroundColor: Colors.black,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        ),
+                                        child: const Text('ASSIGN & SET BUDGET'),
                                       ),
                                     ],
                                   ),
                                 );
 
-                                if (confirm == true) {
+                                if (result != null) {
+                                  final double finalBudget = result['budget'];
                                   await ref.read(firestoreServiceProvider).updateRequestStatus(
                                     request.id,
                                     'assigned',
-                                    additionalData: {'assignedWriterId': writer.uid}
+                                    additionalData: {
+                                      'assignedWriterId': writer.uid,
+                                      'budget': finalBudget,
+                                      'finalAmount': finalBudget,
+                                    }
                                   );
                                   if (context.mounted) {
                                     Navigator.pop(context);
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Order assigned to ${writer.displayName}'))
+                                      SnackBar(content: Text('Order assigned with budget ₹${finalBudget.toStringAsFixed(0)}'))
                                     );
                                   }
                                 }

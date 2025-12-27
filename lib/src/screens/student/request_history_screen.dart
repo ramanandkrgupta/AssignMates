@@ -536,20 +536,7 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
                 ),
               ),
 
-             if (request.status == 'payment_remaining_pending')
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () => _openCheckout(request, isFinal: true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFAF00),
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('Pay Remaining Balance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                ),
-              ),
+
 
              // Assigned - Real Profile
               if (request.status == 'assigned' && request.assignedWriterId != null)
@@ -646,7 +633,7 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
                   child: ElevatedButton(
                     onPressed: () => _openCheckout(request, isFinal: true),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
+                      backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),

@@ -178,10 +178,7 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
                         ),
                       ),
                       ...ongoingRequests.asMap().entries.map((entry) {
-                        return _buildRequestCard(context, entry.value)
-                            .animate()
-                            .fadeIn(delay: (50 * entry.key).ms)
-                            .slideX(begin: 0.1);
+                        return _buildRequestCard(context, entry.value);
                       }),
                       const SizedBox(height: 16),
                     ],
@@ -195,10 +192,7 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
                         ),
                       ),
                       ...previousRequests.asMap().entries.map((entry) {
-                        return _buildRequestCard(context, entry.value)
-                            .animate()
-                            .fadeIn(delay: (50 * entry.key).ms)
-                            .slideX(begin: 0.1);
+                        return _buildRequestCard(context, entry.value);
                       }),
                     ],
 
@@ -268,7 +262,7 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
         border: Border.all(color: Colors.white12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.4),
+            color: Colors.black.withValues(alpha: 0.4),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -368,7 +362,7 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
                  padding: const EdgeInsets.all(15),
                  margin: const EdgeInsets.only(bottom: 15),
                  decoration: BoxDecoration(
-                   color: Colors.red.withOpacity(0.1),
+                   color: Colors.red.withValues(alpha: 0.1),
                    borderRadius: BorderRadius.circular(12),
                    border: Border.all(color: Colors.red.withOpacity(0.3))
                  ),

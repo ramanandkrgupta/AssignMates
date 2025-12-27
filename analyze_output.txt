@@ -1,0 +1,58 @@
+Analyzing AssignMates...                                        
+
+warning • Unused import: 'package:intl/intl.dart' • lib/src/screens/admin/admin_dashboard_screen.dart:4:8 • unused_import
+warning • Unused import: '../../providers/auth_provider.dart' • lib/src/screens/admin/admin_dashboard_screen.dart:5:8 • unused_import
+warning • Unused import: '../../services/firestore_service.dart' • lib/src/screens/admin/admin_dashboard_screen.dart:6:8 • unused_import
+warning • Unused import: '../../models/request_model.dart' • lib/src/screens/admin/admin_dashboard_screen.dart:7:8 • unused_import
+warning • Unused import: '../../models/user_model.dart' • lib/src/screens/admin/admin_dashboard_screen.dart:8:8 • unused_import
+warning • Unused import: 'package:intl/intl.dart' • lib/src/screens/admin/admin_orders_screen.dart:4:8 • unused_import
+warning • Unused import: 'package:flutter_animate/flutter_animate.dart' • lib/src/screens/admin/admin_orders_screen.dart:8:8 • unused_import
+warning • Unused import: 'package:lottie/lottie.dart' • lib/src/screens/admin/admin_orders_screen.dart:9:8 • unused_import
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/src/screens/admin/admin_orders_screen.dart:410:19 • deprecated_member_use
+   info • 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre • lib/src/screens/auth/profile_setup_screen.dart:268:9 • deprecated_member_use
+warning • The value of the field 'darkBlack' isn't used • lib/src/screens/home/home_screen.dart:23:22 • unused_field
+   info • Function literals shouldn't be passed to 'forEach' • lib/src/screens/student/create_request_screen.dart:119:28 • avoid_function_literals_in_foreach_calls
+warning • The declaration '_cancelOrder' isn't referenced • lib/src/screens/student/missing_methods.dart:1:8 • unused_element
+  error • Undefined class 'RequestModel' • lib/src/screens/student/missing_methods.dart:1:21 • undefined_class
+  error • The function 'showDialog' isn't defined • lib/src/screens/student/missing_methods.dart:2:27 • undefined_function
+  error • Undefined name 'context' • lib/src/screens/student/missing_methods.dart:3:16 • undefined_identifier
+  error • The function 'AlertDialog' isn't defined • lib/src/screens/student/missing_methods.dart:4:29 • undefined_function
+  error • The name 'Text' isn't a class • lib/src/screens/student/missing_methods.dart:5:22 • creation_with_non_type
+  error • The name 'Text' isn't a class • lib/src/screens/student/missing_methods.dart:6:24 • creation_with_non_type
+  error • The function 'TextButton' isn't defined • lib/src/screens/student/missing_methods.dart:8:11 • undefined_function
+  error • Undefined name 'Navigator' • lib/src/screens/student/missing_methods.dart:8:39 • undefined_identifier
+  error • The name 'Text' isn't a class • lib/src/screens/student/missing_methods.dart:8:83 • creation_with_non_type
+  error • The function 'TextButton' isn't defined • lib/src/screens/student/missing_methods.dart:9:11 • undefined_function
+  error • Undefined name 'Navigator' • lib/src/screens/student/missing_methods.dart:9:39 • undefined_identifier
+  error • Undefined name 'TextButton' • lib/src/screens/student/missing_methods.dart:9:76 • undefined_identifier
+  error • Undefined name 'Colors' • lib/src/screens/student/missing_methods.dart:9:114 • undefined_identifier
+  error • The name 'Text' isn't a class • lib/src/screens/student/missing_methods.dart:9:140 • creation_with_non_type
+  error • Undefined name '_firestoreService' • lib/src/screens/student/missing_methods.dart:15:13 • undefined_identifier
+warning • The declaration '_verifyWork' isn't referenced • lib/src/screens/student/missing_methods.dart:19:8 • unused_element
+  error • Undefined class 'RequestModel' • lib/src/screens/student/missing_methods.dart:19:20 • undefined_class
+  error • Undefined name '_firestoreService' • lib/src/screens/student/missing_methods.dart:25:15 • undefined_identifier
+  error • Undefined name '_firestoreService' • lib/src/screens/student/missing_methods.dart:27:15 • undefined_identifier
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/src/screens/student/request_history_screen.dart:109:47 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/src/screens/student/request_history_screen.dart:265:33 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/src/screens/student/request_history_screen.dart:295:40 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/src/screens/student/request_history_screen.dart:297:59 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/src/screens/student/request_history_screen.dart:365:38 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/src/screens/student/request_history_screen.dart:367:57 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/src/screens/student/request_history_screen.dart:414:65 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/src/screens/student/request_history_screen.dart:539:62 • deprecated_member_use
+warning • Unused import: '../../providers/auth_provider.dart' • lib/src/screens/writer/writer_dashboard_screen.dart:4:8 • unused_import
+warning • Unused import: 'package:cloudinary_public/cloudinary_public.dart' • lib/src/screens/writer/writer_dashboard_screen.dart:5:8 • unused_import
+warning • Unused import: 'package:file_picker/file_picker.dart' • lib/src/screens/writer/writer_dashboard_screen.dart:6:8 • unused_import
+warning • Unused import: 'package:flutter_dotenv/flutter_dotenv.dart' • lib/src/screens/writer/writer_dashboard_screen.dart:7:8 • unused_import
+warning • Unused import: '../../services/firestore_service.dart' • lib/src/screens/writer/writer_dashboard_screen.dart:8:8 • unused_import
+warning • Unused import: '../../models/user_model.dart' • lib/src/screens/writer/writer_dashboard_screen.dart:9:8 • unused_import
+   info • Don't invoke 'print' in production code • lib/src/services/cloudinary_service.dart:19:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/src/services/notification_service.dart:44:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/src/services/notification_service.dart:47:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/src/services/notification_service.dart:124:5 • avoid_print
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/src/themes/dark.dart:47:29 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/src/themes/dark.dart:54:50 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/src/widgets/glass_card.dart:39:71 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/src/widgets/glass_card.dart:42:37 • deprecated_member_use
+
+54 issues found. (ran in 10.6s)

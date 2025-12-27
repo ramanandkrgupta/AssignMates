@@ -5,8 +5,19 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'firestore_service.dart';
 import '../providers/auth_provider.dart';
+import '../models/notification_model.dart';
 
 final notificationServiceProvider = Provider((ref) => NotificationService(ref));
+
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Use a separate core initialization if needed for background persistence
+  // But for just showing a notification, local_notifications suffice.
+  print("Handling a background message: ${message.messageId}");
+
+  // We don't need to manually show here if it's a 'Notification' message (Firebase handles it)
+  // If it's a 'Data' message, we might need to show local notification manually.
+}
 
 class NotificationService {
   final Ref _ref;
@@ -51,10 +62,10 @@ class NotificationService {
   Future<void> _showLocalNotification(RemoteMessage message) async {
     final notification = message.notification;
     if (notification == null) return;
-    await _showLocalDirect(title: notification.title ?? '', body: notification.body ?? '');
+    await showLocalNotification(title: notification.title ?? '', body: notification.body ?? '');
   }
 
-  Future<void> _showLocalDirect({required String title, required String body}) async {
+  Future<void> showLocalNotification({required String title, required String body}) async {
     final androidDetails = AndroidNotificationDetails(
       'order_updates_channel',
       'Order Updates',
@@ -94,59 +105,34 @@ class NotificationService {
   /// Sends a notification to a specific list of tokens
   /// This typically requires a backend or FCM Server Key.
   Future<void> sendNotification({
-    required List<String> receiverTokens,
+    required String targetUserId,
     required String title,
     required String body,
   }) async {
-    if (receiverTokens.isEmpty) return;
+    final currentUser = _ref.read(authStateProvider).value;
 
-    // For a real app, you should use Firebase Cloud Functions to send notifications securely.
-    // If you have a Legacy Server Key, you could use:
-    /*
-    final serverKey = 'YOUR_SERVER_KEY';
-    for (var token in receiverTokens) {
-      await http.post(
-        Uri.parse('https://fcm.googleapis.com/fcm/send'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'key=$serverKey',
-        },
-        body: jsonEncode({
-          'notification': {'title': title, 'body': body},
-          'priority': 'high',
-          'to': token,
-        }),
-      );
-    }
-    */
+    // 1. Persist to Firestore as a bridge for real-time sync across devices
+    final notification = NotificationModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      targetUserId: targetUserId,
+      senderId: currentUser?.uid,
+      title: title,
+      body: body,
+      createdAt: DateTime.now(),
+    );
 
-    // For now, we will log it. In a production environment, this should trigger a Cloud Function.
-    print('Sending Notification: $title - $body to ${receiverTokens.length} devices');
+    await _ref.read(firestoreServiceProvider).createNotification(notification);
+
+    // 2. Original Logging
+    print('Notification Persisted to Firestore: $title - $body for $targetUserId');
   }
 
   Future<void> notifyAdmins({required String title, required String body}) async {
-    final admins = await _ref.read(firestoreServiceProvider).getAdmins();
-    final tokens = admins.map((a) => a.fcmToken).whereType<String>().toList();
-
-    // Also show locally if current user is admin
-    final currentUser = _ref.read(authStateProvider).value;
-    if (currentUser != null && admins.any((a) => a.uid == currentUser.uid)) {
-      await _showLocalDirect(title: title, body: body);
-    }
-
-    await sendNotification(receiverTokens: tokens, title: title, body: body);
+    // Target 'admin' bridge
+    await sendNotification(targetUserId: 'admin', title: title, body: body);
   }
 
   Future<void> notifyUser({required String userId, required String title, required String body}) async {
-    // 1. If for current user, show locally immediately
-    final currentUser = _ref.read(authStateProvider).value;
-    if (currentUser != null && currentUser.uid == userId) {
-      await _showLocalDirect(title: title, body: body);
-    }
-
-    final user = await _ref.read(firestoreServiceProvider).getUser(userId);
-    if (user?.fcmToken != null) {
-      await sendNotification(receiverTokens: [user!.fcmToken!], title: title, body: body);
-    }
+    await sendNotification(targetUserId: userId, title: title, body: body);
   }
 }

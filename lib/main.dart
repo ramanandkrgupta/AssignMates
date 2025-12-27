@@ -4,6 +4,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'app.dart';
 import 'firebase_options.dart';
 
+import 'src/services/notification_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
@@ -12,5 +14,9 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Register background handler
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
   runApp(const ProviderScope(child: AssignMatesApp()));
 }

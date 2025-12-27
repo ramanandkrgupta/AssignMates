@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user_model.dart';
 import '../models/request_model.dart';
+import '../models/notification_model.dart';
 
 final firestoreProvider = Provider<FirebaseFirestore>((ref) {
   return FirebaseFirestore.instance;
@@ -91,6 +92,29 @@ class FirestoreService {
 
   Future<void> updateFcmToken(String uid, String? token) async {
     await _db.collection('users').doc(uid).update({'fcmToken': token});
+  }
+
+  // --- Notification Methods ---
+
+  Future<void> createNotification(NotificationModel notification) async {
+    await _db.collection('notifications').doc(notification.id).set(notification.toMap());
+  }
+
+  Stream<List<NotificationModel>> getNotificationsStream(String userId) {
+    // We listen for notifications where targetUserId is 'admin' or matches the specific user
+    return _db
+        .collection('notifications')
+        .where('targetUserId', whereIn: [userId, 'admin'])
+        .snapshots()
+        .map((snapshot) {
+      final notifs = snapshot.docs.map((doc) => NotificationModel.fromMap(doc.data())).toList();
+      notifs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return notifs;
+    });
+  }
+
+  Future<void> deleteNotification(String notificationId) async {
+    await _db.collection('notifications').doc(notificationId).delete();
   }
 }
 

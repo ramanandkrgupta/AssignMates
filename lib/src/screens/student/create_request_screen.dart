@@ -408,9 +408,12 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       if (mounted) {
         // 1. Notify Admins
         final notificationService = ref.read(notificationServiceProvider);
+        final studentName = appUser?.displayName ?? 'A student';
+        final studentCity = appUser?.city ?? 'Unknown city';
+
         notificationService.notifyAdmins(
           title: 'New Order Received! 🚀',
-          body: 'A new order has been placed: ${newRequest.instructions.substring(0, newRequest.instructions.length > 30 ? 30 : newRequest.instructions.length)}...',
+          body: 'From $studentCity, $studentName created ${newRequest.pageCount} pages order',
         );
 
         // 2. Notify User (The requested message)

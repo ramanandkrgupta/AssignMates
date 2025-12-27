@@ -9,6 +9,7 @@ import 'dart:async';
 import 'package:video_player/video_player.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import '../common/media_viewer_screen.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
@@ -782,6 +783,64 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                           child: CircularProgressIndicator(color: Color(0xFFFFAF00)),
                         ),
                       ),
+              ),
+
+              const SizedBox(height: 10),
+
+              // 6. Samples of our Work
+              _buildDarkComponent(
+                title: 'Samples of our Work',
+                child: StreamBuilder<List<AppUser>>(
+                  stream: ref.read(firestoreServiceProvider).getWritersStream(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const SizedBox();
+                    final allSamples = snapshot.data!.expand((w) => w.sampleWorkUrls).take(10).toList();
+                    if (allSamples.isEmpty) return const Text('No samples yet', style: TextStyle(color: Colors.white24));
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Check the quality of our experts\' work:', style: GoogleFonts.outfit(color: Colors.white70, fontSize: 13)),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 100,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: allSamples.length,
+                            itemBuilder: (context, index) {
+                              return GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => MediaViewerScreen(
+                                        urls: allSamples,
+                                        title: 'Work Samples',
+                                        initialIndex: index,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.only(right: 12),
+                                  width: 100,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.white12),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.network(allSamples[index], fit: BoxFit.cover),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
 
               const SizedBox(height: 10),

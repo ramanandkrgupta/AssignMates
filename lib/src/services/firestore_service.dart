@@ -104,6 +104,16 @@ class FirestoreService {
     return snapshot.docs.map((doc) => AppUser.fromMap(doc.data())).toList();
   }
 
+  Stream<List<AppUser>> getWritersStream() {
+    return _db
+        .collection('users')
+        .where('role', isEqualTo: 'writer')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => AppUser.fromMap(doc.data())).toList();
+    });
+  }
+
   Future<void> updateFcmToken(String uid, String? token) async {
     await _db.collection('users').doc(uid).update({'fcmToken': token});
   }

@@ -141,6 +141,15 @@ class ProfileScreen extends ConsumerWidget {
               context,
               ref,
               user,
+              'City',
+              user.city ?? 'Add City',
+              Icons.location_city,
+              'city'
+            ),
+            _buildEditableTile(
+              context,
+              ref,
+              user,
               'Mobile Number',
               user.phoneNumber ?? 'Add Mobile Number',
               Icons.phone,
@@ -282,7 +291,9 @@ class ProfileScreen extends ConsumerWidget {
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   maxLines: isLocation ? 3 : 1,
-                  keyboardType: isLocation ? TextInputType.multiline : TextInputType.phone,
+                  keyboardType: isLocation
+                      ? TextInputType.multiline
+                      : (fieldKey == 'phoneNumber' ? TextInputType.phone : TextInputType.text),
                 ),
               ],
             ),

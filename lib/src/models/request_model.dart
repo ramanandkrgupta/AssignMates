@@ -22,6 +22,7 @@ class RequestModel {
   final double paidAmount;
   final bool isHalfPayment; // If user chose half payment initially
   final List<String> verificationPhotos; // Photos uploaded by writer for review
+  final String? cancellationReason;
 
   RequestModel({
     required this.id,
@@ -46,6 +47,7 @@ class RequestModel {
     this.paidAmount = 0.0,
     this.isHalfPayment = false,
     this.verificationPhotos = const [],
+    this.cancellationReason,
   });
 
   Map<String, dynamic> toMap() {
@@ -72,6 +74,7 @@ class RequestModel {
       'paidAmount': paidAmount,
       'isHalfPayment': isHalfPayment,
       'verificationPhotos': verificationPhotos,
+      'cancellationReason': cancellationReason,
     };
   }
 
@@ -99,6 +102,7 @@ class RequestModel {
       paidAmount: (map['paidAmount'] ?? 0).toDouble(),
       isHalfPayment: map['isHalfPayment'] ?? false,
       verificationPhotos: List<String>.from(map['verificationPhotos'] ?? []),
+      cancellationReason: map['cancellationReason'],
     );
   }
 }

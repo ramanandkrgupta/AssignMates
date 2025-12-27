@@ -1,0 +1,161 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../models/request_model.dart';
+import '../../models/user_model.dart';
+import '../../services/firestore_service.dart';
+
+class AssignWriterScreen extends ConsumerWidget {
+  final RequestModel request;
+
+  const AssignWriterScreen({super.key, required this.request});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF1A1A1A),
+      appBar: AppBar(
+        title: Text('Assign Writer', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.black)),
+        centerTitle: true,
+        backgroundColor: const Color(0xFFFFAF00),
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black),
+      ),
+      body: StreamBuilder<List<AppUser>>(
+        stream: ref.read(firestoreServiceProvider).getWritersStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: Color(0xFFFFAF00)));
+
+          final writers = snapshot.data?.where((w) => w.isAvailable).toList() ?? [];
+
+          if (writers.isEmpty) {
+            return Center(
+              child: Text(
+                'No available writers at the moment.',
+                style: GoogleFonts.outfit(color: Colors.white70, fontSize: 16),
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(20),
+            itemCount: writers.length,
+            itemBuilder: (context, index) {
+              final writer = writers[index];
+
+              return StreamBuilder<List<RequestModel>>(
+                stream: ref.read(firestoreServiceProvider).getWriterRequestsStream(writer.uid),
+                builder: (context, reqSnapshot) {
+                  final activeCount = reqSnapshot.data?.where((r) => r.status != 'completed' && r.status != 'cancelled').length ?? 0;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2A2A2A),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 30,
+                          backgroundColor: const Color(0xFFFFAF00).withValues(alpha: 0.1),
+                          backgroundImage: writer.photoURL != null ? NetworkImage(writer.photoURL!) : null,
+                          child: writer.photoURL == null ? const Icon(Icons.person, color: Color(0xFFFFAF00), size: 30) : null,
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                writer.displayName ?? 'Anonymous Writer',
+                                style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFAF00).withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'Active: $activeCount',
+                                      style: GoogleFonts.outfit(color: const Color(0xFFFFAF00), fontSize: 12, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.call, color: Colors.greenAccent),
+                              onPressed: () async {
+                                if (writer.phoneNumber != null) {
+                                  final uri = Uri.parse('tel:${writer.phoneNumber}');
+                                  if (await canLaunchUrl(uri)) await launchUrl(uri);
+                                }
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    backgroundColor: const Color(0xFF1E1E1E),
+                                    title: Text('Confirm Assignment', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+                                    content: Text('Do you want to assign this order to ${writer.displayName}?', style: GoogleFonts.outfit(color: Colors.white70)),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL', style: TextStyle(color: Colors.grey))),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context, true),
+                                        child: const Text('ASSIGN', style: TextStyle(color: Color(0xFFFFAF00), fontWeight: FontWeight.bold)),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (confirm == true) {
+                                  await ref.read(firestoreServiceProvider).updateRequestStatus(
+                                    request.id,
+                                    'assigned',
+                                    additionalData: {'assignedWriterId': writer.uid}
+                                  );
+                                  if (context.mounted) {
+                                    Navigator.pop(context);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Order assigned to ${writer.displayName}'))
+                                    );
+                                  }
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFFAF00),
+                                foregroundColor: Colors.black,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                              ),
+                              child: Text('ASSIGN', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}

@@ -8,6 +8,9 @@ import '../../services/firestore_service.dart';
 import '../../models/request_model.dart';
 import 'package:lottie/lottie.dart';
 import 'create_request_screen.dart';
+import '../common/media_viewer_screen.dart';
+import '../../models/user_model.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class RequestHistoryScreen extends ConsumerStatefulWidget {
   const RequestHistoryScreen({super.key});
@@ -212,17 +215,38 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
     // Determine active step index
     int currentStep = 0;
     switch (request.status) {
-      case 'created': currentStep = 0; break;
-      case 'verified': currentStep = 1; break;
-      case 'assigned': currentStep = 2; break;
-      case 'payment_pending': currentStep = 3; break;
-      case 'in_progress': currentStep = 4; break;
-      case 'review_pending': currentStep = 5; break;
-      case 'payment_remaining_pending': currentStep = 6; break;
-      case 'delivering': currentStep = 7; break;
-      case 'completed': currentStep = 8; break;
-      case 'cancelled': currentStep = -1; break;
-      default: currentStep = 0;
+      case 'created':
+        currentStep = 1; // Order Placed done, Admin Verification active
+        break;
+      case 'verified':
+        currentStep = 2; // Admin Verification done, Writer Assigned active
+        break;
+      case 'assigned':
+        currentStep = 3; // Writer Assigned done, Payment active
+        break;
+      case 'payment_pending':
+        currentStep = 3; // Waiting for payment
+        break;
+      case 'in_progress':
+        currentStep = 5; // Payment & Started done, Writer Completion active
+        break;
+      case 'review_pending':
+        currentStep = 6; // Writer Completion done, Final Payment active
+        break;
+      case 'payment_remaining_pending':
+        currentStep = 6; // Waiting for final payment
+        break;
+      case 'delivering':
+        currentStep = 8; // Delivering done, Order Completed active
+        break;
+      case 'completed':
+        currentStep = 9; // All steps done
+        break;
+      case 'cancelled':
+        currentStep = -1;
+        break;
+      default:
+        currentStep = 1;
     }
 
     // Status Logic & Colors
@@ -310,7 +334,7 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
               children: [
                 const Icon(Icons.attachment, size: 18, color: Color(0xFFFFAF00)),
                 const SizedBox(width: 6),
-                Text('${request.attachmentUrls.length} Views', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                Text('${request.attachmentUrls.length} Attachments', style: const TextStyle(color: Colors.grey, fontSize: 13)),
                 const SizedBox(width: 20),
                 const Icon(Icons.account_balance_wallet_outlined, size: 18, color: Color(0xFFFFAF00)),
                 const SizedBox(width: 6),
@@ -406,33 +430,69 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
                 ),
               ),
 
-              // Assigned - Mock Profile
-              if (request.status == 'assigned')
-               Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Writer Assigned! Check their samples:',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange)),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 12,
-                        children: [1,2].map((e) => Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[800],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(Icons.image, size: 24, color: Colors.white54)
-                        )).toList(),
+             // Assigned - Real Profile
+              if (request.status == 'assigned' && request.assignedWriterId != null)
+               FutureBuilder<AppUser?>(
+                 future: ref.read(firestoreServiceProvider).getUser(request.assignedWriterId!),
+                 builder: (context, writerSnapshot) {
+                   final writer = writerSnapshot.data;
+                   if (writer == null) return const SizedBox();
+
+                   return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Writer Assigned! Check Writing samples:',
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFFFFAF00))),
+                          const SizedBox(height: 12),
+                          if (writer.sampleWorkUrls.isEmpty)
+                             Text('No samples available', style: GoogleFonts.outfit(color: Colors.white24, fontSize: 12))
+                          else
+                            SizedBox(
+                              height: 60,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: writer.sampleWorkUrls.length,
+                                itemBuilder: (context, index) {
+                                  final url = writer.sampleWorkUrls[index];
+                                  return GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => MediaViewerScreen(
+                                            urls: writer.sampleWorkUrls,
+                                            title: '${writer.displayName}\'s Samples',
+                                            initialIndex: index,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: Container(
+                                      margin: const EdgeInsets.only(right: 12),
+                                      width: 60,
+                                      height: 60,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.white12),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(url, fit: BoxFit.cover),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                    );
+                 },
+               ),
 
              // Review Step
              if (request.status == 'review_pending')

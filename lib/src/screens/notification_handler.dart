@@ -5,6 +5,8 @@ import '../services/notification_service.dart';
 import '../services/firestore_service.dart';
 import '../models/notification_model.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/in_app_notification.dart';
+import 'common/notification_screen.dart';
 
 class NotificationHandler extends ConsumerStatefulWidget {
   final Widget child;
@@ -70,8 +72,23 @@ class _NotificationHandlerState extends ConsumerState<NotificationHandler> {
            _lastTriggerTime = n.createdAt;
            await service.init(); // ensure init
 
-           // Show local popup ONLY to avoid infinite bridge recursion
-           await service.showLocalNotification(title: n.title, body: n.body);
+
+           // Show in-app notification widget
+           if (mounted) {
+             showInAppNotification(
+               context, 
+               n.title, 
+               n.body,
+               onTap: () {
+                 Navigator.of(context).push(
+                   MaterialPageRoute(builder: (context) => const NotificationScreen()),
+                 );
+               },
+             );
+           }
+           
+           // Optional: still show local notification if desired, or disable it
+           // await service.showLocalNotification(title: n.title, body: n.body);
          }
        }
     });

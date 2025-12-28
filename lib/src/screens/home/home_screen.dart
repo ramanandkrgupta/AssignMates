@@ -222,7 +222,7 @@ class _HomeContent extends ConsumerWidget {
                         elevation: 0,
                       ),
                       child: Text(
-                        'Get Started',
+                        'Get Started 🚀',
                         style: GoogleFonts.outfit(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,

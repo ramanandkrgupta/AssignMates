@@ -40,13 +40,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ),
           iconTheme: WidgetStateProperty.resolveWith((states) {
              if (states.contains(WidgetState.selected)) {
-               return const IconThemeData(size: 28, color: Colors.black);
+               return const IconThemeData(size: 24, color: Colors.black);
              }
-             return const IconThemeData(size: 28, color: Colors.white);
+             return const IconThemeData(size: 24, color: Colors.white);
           }),
         ),
         child: NavigationBar(
-          height: 80,
+          height: 70, // Slightly smaller height for 6 items
           selectedIndex: _selectedIndex,
           onDestinationSelected: (index) => setState(() => _selectedIndex = index),
           backgroundColor: Colors.black,

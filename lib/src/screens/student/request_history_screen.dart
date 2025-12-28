@@ -11,10 +11,11 @@ import '../../services/firestore_service.dart';
 import '../../models/request_model.dart';
 import '../../models/user_model.dart'; // Added missing import
 import 'package:lottie/lottie.dart';
+import '../../models/timeline_step.dart';
+import 'previous_orders_screen.dart';
 import 'create_request_screen.dart';
 import '../common/media_viewer_screen.dart';
 import '../../models/payment_model.dart';
-import '../../models/timeline_step.dart';
 
 class RequestHistoryScreen extends ConsumerStatefulWidget {
   const RequestHistoryScreen({super.key});
@@ -47,8 +48,8 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
     if (_pendingRequest != null && _pendingPaymentType != null) {
       final firestoreService = ref.read(firestoreServiceProvider);
       final req = _pendingRequest!;
-      final amountPaid = _pendingPaymentType == 'half' 
-          ? (req.budget / 2) 
+      final amountPaid = _pendingPaymentType == 'half'
+          ? (req.budget / 2)
           : (_pendingPaymentType == 'final' ? (req.budget - req.paidAmount) : req.budget);
 
       // 1. Create Payment Transaction
@@ -71,11 +72,12 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
       // 2. Determine Next Status & Timeline Step
       String nextStatus = 'in_progress';
       String stepTitle = 'Payment Received';
-      String stepDesc = 'Payment of ₹${amountPaid.toStringAsFixed(0)} received.';
+      String stepDesc = 'Thanks for payment! We received ₹${amountPaid.toStringAsFixed(0)}. Payment successful!';
 
       if (_pendingPaymentType == 'final') {
         nextStatus = 'delivering';
         stepTitle = 'Final Payment Received';
+        stepDesc = 'Thanks for payment! We received ₹${amountPaid.toStringAsFixed(0)}. Payment successful! Your order is on the way! ✅';
       } else if (_pendingPaymentType == 'half') {
          // Mark as half payment
          await firestoreService.updateRequest(req.id, {'isHalfPayment': true});
@@ -130,11 +132,11 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
     String contact = '';
     String email = '';
     final authUser = ref.read(authStateProvider).value;
-    
+
     if (authUser != null) {
       email = authUser.email ?? '';
       contact = authUser.phoneNumber ?? '';
-      
+
       try {
         final appUser = await ref.read(firestoreServiceProvider).getUser(authUser.uid);
         if (appUser != null) {
@@ -190,7 +192,7 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
         'status': request.isHalfPayment ? 'payment_remaining_pending' : 'delivering',
       });
   }
-  
+
   Future<void> _cancelOrder(RequestModel request) async {
   bool? confirm = await showDialog<bool>(
     context: context,
@@ -226,6 +228,11 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
         centerTitle: false,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          IconButton(
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PreviousOrdersScreen())),
+            icon: const Icon(Icons.history, color: Colors.white70),
+            tooltip: 'View History',
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: TextButton.icon(
@@ -288,13 +295,11 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
                   ).animate().fadeIn(duration: 500.ms);
                 }
 
-                // Grouping: Ongoing vs Previous
+                // Filter for ONGOING requests only
                 final ongoingRequests = requests.where((r) => r.status != 'completed' && r.status != 'cancelled').toList();
-                final previousRequests = requests.where((r) => r.status == 'completed' || r.status == 'cancelled').toList();
 
                 // Sort by date
                 ongoingRequests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-                previousRequests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
                 return ListView(
                   padding: const EdgeInsets.all(16),
@@ -308,22 +313,24 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
                         ),
                       ),
                       ...ongoingRequests.asMap().entries.map((entry) {
-                        return _buildRequestCard(context, entry.value);
+                        return _buildRequestCard(context, entry.value, initiallyExpanded: true);
                       }),
-                      const SizedBox(height: 16),
-                    ],
-
-                    if (previousRequests.isNotEmpty) ...[
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 16, top: 8, left: 4),
-                        child: Text(
-                          'Previous orders',
-                          style: TextStyle(color: Colors.white70, fontSize: 18, fontWeight: FontWeight.bold),
+                    ] else ...[
+                      // If no ongoing, show empty state or quick link to history
+                      Center(
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 40),
+                            Lottie.asset('assets/animations/empty.json', height: 150),
+                            const Text('No active orders', style: TextStyle(color: Colors.white54)),
+                            const SizedBox(height: 12),
+                            TextButton(
+                              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PreviousOrdersScreen())),
+                              child: const Text('View Previous Orders', style: TextStyle(color: Color(0xFFFFAF00))),
+                            ),
+                          ],
                         ),
                       ),
-                      ...previousRequests.asMap().entries.map((entry) {
-                        return _buildRequestCard(context, entry.value);
-                      }),
                     ],
 
                     // Extra padding at the bottom for navigation menu
@@ -335,7 +342,7 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
     );
   }
 
-  Widget _buildRequestCard(BuildContext context, RequestModel request) {
+  Widget _buildRequestCard(BuildContext context, RequestModel request, {bool initiallyExpanded = false}) {
     Color statusColor;
     String statusText = request.status.toUpperCase().replaceAll('_', ' ');
 
@@ -485,6 +492,7 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
                 ),
               ),
               child: ExpansionTile(
+                initiallyExpanded: initiallyExpanded,
                 title: const Text('Track Order Progress', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                 childrenPadding: const EdgeInsets.only(left: 8, bottom: 8),
                 tilePadding: EdgeInsets.zero,

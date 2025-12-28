@@ -20,6 +20,7 @@ import '../../services/notification_service.dart';
 import '../home/home_screen.dart';
 import '../../models/pricing_model.dart';
 import '../../models/timeline_step.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 class CreateRequestScreen extends ConsumerStatefulWidget {
   const CreateRequestScreen({super.key});
@@ -64,6 +65,10 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   // Instruction Video
   VideoPlayerController? _videoController;
 
+  // Track initialization of sound sessions to avoid redundant calls
+  bool _isRecorderInitialized = false;
+  bool _isPlayerInitialized = false;
+
 
   @override
   void initState() {
@@ -78,7 +83,8 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
 
   void _initVideoPlayer() async {
     _videoController = VideoPlayerController.networkUrl(
-      Uri.parse('https://res.cloudinary.com/doxmvuss9/video/upload/v1766751305/link-generator/hfepcnjloyjrjp2fe66r.mp4')
+      Uri.parse('https://res.cloudinary.com/doxmvuss9/video/upload/v1766751305/link-generator/hfepcnjloyjrjp2fe66r.mp4'),
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
     );
     await _videoController!.initialize();
     _videoController!.setVolume(0); // Mute
@@ -109,13 +115,9 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     _recorder = FlutterSoundRecorder();
     _player = FlutterSoundPlayer();
 
-    await _recorder!.openRecorder();
-    await _player!.openPlayer();
-
+    // We defer openRecorder() and openPlayer() until actual use
+    // to prevent interrupting background music from other apps on screen entry.
     await Permission.microphone.request();
-
-    // Set metering logic
-    await _recorder!.setSubscriptionDuration(const Duration(milliseconds: 50));
   }
 
   @override
@@ -173,6 +175,13 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       }
     } else {
        if (await Permission.microphone.request().isGranted) {
+           // Open recorder only when starting to record
+           if (!_isRecorderInitialized) {
+              await _recorder!.openRecorder();
+              await _recorder!.setSubscriptionDuration(const Duration(milliseconds: 50));
+              _isRecorderInitialized = true;
+           }
+
            final path = 'voice_note_${DateTime.now().millisecondsSinceEpoch}.aac';
            await _recorder!.startRecorder(toFile: path);
 
@@ -200,6 +209,12 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     } else {
       // Stop any other
       if (_playingPath != null) await _player!.stopPlayer();
+
+      // Open player only when starting to play
+      if (!_isPlayerInitialized) {
+        await _player!.openPlayer();
+        _isPlayerInitialized = true;
+      }
 
       setState(() => _playingPath = path);
       await _player!.startPlayer(
@@ -363,10 +378,11 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
        return;
     }
 
-    // Sync instructions if in List Mode
-    if (_isListMode) {
-      final points = _listControllers.map((c) => c.text.trim()).where((s) => s.isNotEmpty).toList();
-      _instructionsController.text = points.map((p) => '• $p').join('\n');
+    // Validate Instructions
+    final instructions = _instructionsController.text.trim();
+    if (instructions.isEmpty && !_isListMode) {
+       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please provide instructions for your order.')));
+       return;
     }
 
     setState(() => _isLoading = true);
@@ -374,6 +390,9 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     try {
       final cloudinaryService = cloudinaryServiceProvider;
       final firestoreService = ref.read(firestoreServiceProvider);
+
+      // Generate ID from Firestore to ensure uniqueness and order
+      final requestId = firestoreService.requestsCollection.doc().id;
 
       List<String> attachmentUrls = [];
       Map<String, String> mediaUrls = {}; // Supporting simplistic map for compatibility, but mainly relying on attachmentUrls
@@ -406,10 +425,17 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
          }
       }
 
+      // Sync instructions if in List Mode
+      String finalInstructions = instructions;
+      if (_isListMode) {
+        final points = _listControllers.map((c) => c.text.trim()).where((s) => s.isNotEmpty).toList();
+        finalInstructions = points.map((p) => '• $p').join('\n');
+      }
+
       final newRequest = RequestModel(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        id: requestId,
         studentId: user.uid,
-        instructions: _instructionsController.text.trim(),
+        instructions: finalInstructions,
         deadline: _deadline!,
         budget: 0.0,
         status: 'created',
@@ -445,7 +471,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
           title: 'New Order Received! 🚀',
           body: 'From $studentCity, $studentName created ${newRequest.pageCount} pages order',
           type: 'new_order',
-          payload: {'requestId': newRequest.id},
+          payload: {'requestId': requestId},
         );
 
 
@@ -455,7 +481,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
           title: 'Order Received! ✅',
           body: 'Your order is on the way! You will get a call in 10 minutes.',
           type: 'order_created',
-          payload: {'requestId': newRequest.id},
+          payload: {'requestId': requestId},
         );
 
         // 3. Switch to History Tab and close screen
@@ -514,7 +540,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
 
     // Fetch pricing if user is loaded and we haven't yet
     if (user != null && _currentPricing == null && !_isLoadingPricing) {
-       // Defer to next frame to avoid setState during build if needed, 
+       // Defer to next frame to avoid setState during build if needed,
        // but since _fetchPricing is async and starts with await (or check), it's fine usually.
        // However, scheduling it is safer.
        WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -811,22 +837,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
               // 5. How to Count Pages (Video)
               _buildDarkComponent(
                 title: 'How to Count the number of Page?',
-                child: _videoController != null && _videoController!.value.isInitialized
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: AspectRatio(
-                          aspectRatio: _videoController!.value.aspectRatio,
-                          child: IgnorePointer(
-                            child: VideoPlayer(_videoController!),
-                          ),
-                        ),
-                      )
-                    : const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(20.0),
-                          child: CircularProgressIndicator(color: Color(0xFFFFAF00)),
-                        ),
-                      ),
+                child: _InstructionVideo(controller: _videoController),
               ),
 
               const SizedBox(height: 10),
@@ -970,5 +981,49 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         deleteIcon: const Icon(Icons.close, size: 14, color: Colors.red),
         onDeleted: onDelete,
      );
+  }
+}
+
+class _InstructionVideo extends StatelessWidget {
+  final VideoPlayerController? controller;
+  const _InstructionVideo({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    if (controller == null || !controller!.value.isInitialized) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20.0),
+          child: CircularProgressIndicator(color: Color(0xFFFFAF00)),
+        ),
+      );
+    }
+
+    return VisibilityDetector(
+      key: const Key('instruction-video-key'),
+      onVisibilityChanged: (info) {
+        if (controller == null) return;
+        if (info.visibleFraction > 0.1) {
+          if (!controller!.value.isPlaying) {
+            controller!.play();
+          }
+        } else {
+          if (controller!.value.isPlaying) {
+            controller!.pause();
+          }
+        }
+      },
+      child: RepaintBoundary(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: AspectRatio(
+            aspectRatio: controller!.value.aspectRatio,
+            child: IgnorePointer(
+              child: VideoPlayer(controller!),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

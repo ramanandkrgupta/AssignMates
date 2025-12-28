@@ -8,14 +8,17 @@ import 'assign_writer_screen.dart';
 import '../../models/request_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/notification_provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../../widgets/audio_player_widget.dart';
+import '../../widgets/animated_notification_icon.dart';
 import '../common/media_viewer_screen.dart';
 import '../../services/notification_service.dart';
-import '../common/notification_screen.dart';
 import '../../models/timeline_step.dart';
+import 'admin_previous_orders_screen.dart';
+import '../common/notification_screen.dart';
 
 class AdminOrdersScreen extends ConsumerStatefulWidget {
   const AdminOrdersScreen({super.key});
@@ -41,9 +44,25 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
           elevation: 0,
           centerTitle: false,
           actions: [
+            Consumer(
+              builder: (context, ref, child) {
+                final unreadCount = ref.watch(unreadNotificationsCountProvider).value ?? 0;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: Center(
+                    child: AnimatedNotificationIcon(
+                      unreadCount: unreadCount,
+                      iconColor: const Color(0xFFFFAF00),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationScreen())),
+                    ),
+                  ),
+                );
+              },
+            ),
             IconButton(
-              icon: const Icon(Icons.notifications_outlined, color: Color(0xFFFFAF00)),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationScreen())),
+              icon: const Icon(Icons.history, color: Color(0xFFFFAF00)),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminPreviousOrdersScreen())),
+              tooltip: 'Order History',
             ),
             IconButton(
               icon: const Icon(Icons.logout, color: Color(0xFFFFAF00)),
@@ -58,8 +77,8 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
             labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold),
             tabs: const [
               Tab(text: 'Ongoing'),
-              Tab(text: 'Completed'),
-              Tab(text: 'Cancelled'),
+              Tab(text: 'Paid'),
+              Tab(text: 'Final'),
             ],
           ),
         ),
@@ -74,12 +93,19 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
             }
             final requests = snapshot.data ?? [];
 
+            final activeRequests = requests.where((r) => r.status != 'completed' && r.status != 'cancelled').toList();
+            activeRequests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
             return TabBarView(
-              // controller: _tabController, // Removed
               children: [
-                _buildOrderList(requests.where((r) => r.status != 'completed' && r.status != 'cancelled').toList(), 0),
-                _buildOrderList(requests.where((r) => r.status == 'completed').toList(), 1),
-                _buildOrderList(requests.where((r) => r.status == 'cancelled').toList(), 2),
+                // 1. Ongoing: No payment yet
+                _buildOrderList(activeRequests.where((r) => r.paidAmount == 0).toList(), 0),
+
+                // 2. Paid: Paid something, but writer hasn't uploaded proof
+                _buildOrderList(activeRequests.where((r) => r.paidAmount > 0 && r.verificationPhotos.isEmpty).toList(), 1),
+
+                // 3. Final: Writer uploaded proof, order in review or delivering
+                _buildOrderList(activeRequests.where((r) => r.verificationPhotos.isNotEmpty).toList(), 2),
               ],
             );
           },
@@ -91,58 +117,7 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
   Widget _buildOrderList(List<RequestModel> orders, int tabIndex) {
     return Column(
       children: [
-        if (tabIndex == 0) // Only on Ongoing tab
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.bug_report, color: Colors.black),
-              label: Text('Simulate Student Request', style: GoogleFonts.outfit(color: Colors.black, fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFAF00),
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () async {
-                 final firestore = ref.read(firestoreServiceProvider);
-                 final notifier = ref.read(notificationServiceProvider);
-                 final users = await firestore.getAllUsers();
-                 final student = users.firstWhere((u) => u.role == 'student', orElse: () => users.first);
 
-                 final requestId = 'sim_${DateTime.now().millisecondsSinceEpoch}';
-                 final newRequest = RequestModel(
-                   id: requestId,
-                   studentId: student.uid,
-                   instructions: 'SIMULATED REQUEST: This is a test request created from the Admin Dashboard to verify notifications. No docs attached.',
-                   deadline: DateTime.now().add(const Duration(days: 3)),
-                   budget: 0.0,
-                   status: 'created',
-                   attachmentUrls: [],
-                   mediaUrls: {},
-                   pageCount: 1,
-                   createdAt: DateTime.now(),
-                   timeline: [
-                      TimelineStep(
-                        status: 'created',
-                        title: 'Order Created',
-                        description: 'Simulated Order Created',
-                        timestamp: DateTime.now(),
-                        notificationsSent: {'admin': true},
-                      )
-                   ],
-                 );
-
-                 await firestore.createRequest(newRequest);
-                 await notifier.notifyAdmins(
-                   title: 'New Order Received! 🚀',
-                   body: 'From ${student.city ?? 'Unknown city'}, ${student.displayName ?? 'Student'} created 1 page order',
-                 );
-
-                 if (mounted) {
-                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Simulated request created! Check for notification.')));
-                 }
-              },
-            ),
-          ),
         if (orders.isEmpty)
           Expanded(
             child: Center(
@@ -477,12 +452,12 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
                    await ref.read(firestoreServiceProvider).updateRequest(request.id, {
                      'estimatedDeliveryTime': deliveryController.text,
                    });
-                   
+
                    // Explicit notification for non-timeline update (Delivery Time)
                    await ref.read(notificationServiceProvider).notifyUser(
                      userId: request.studentId,
                      title: 'Delivery Update 🚚',
-                     body: 'Estimated Delivery: ${deliveryController.text}',
+                     body: 'Your order is on the way! Estimated Delivery: ${deliveryController.text}',
                      type: 'delivery_update',
                      payload: {'requestId': request.id}
                    );

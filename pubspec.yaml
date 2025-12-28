@@ -100,3 +100,4 @@ flutter:
     - assets/animations/
     - assets/images/
     - .env
+    - shorebird.yaml

@@ -1,3 +1,6 @@
+import 'payment_model.dart';
+import 'timeline_step.dart';
+
 class RequestModel {
   final String id;
   final String studentId;
@@ -11,13 +14,18 @@ class RequestModel {
   final int pageCount;
   final String pageType; // 'A4' or 'EdSheet'
   final String urgency; // '1day' etc.
-  final List<Map<String, dynamic>> statusHistory; // [{status: 'created', timestamp: ...}]
+  
+  // Refactored History & Payments
+  final List<TimelineStep> timeline; // Replaces statusHistory
+  final List<PaymentTransaction> payments;
+
   final double finalAmount;
   final String? assignedWriterId;
   final bool isPageCountVerified;
   final bool isLocationVerified;
   final DateTime createdAt;
-  // New Fields for Detailed Flow
+  
+  // Additional Fields
   final String paymentStatus; // 'unpaid', 'half_paid', 'fully_paid'
   final double paidAmount;
   final bool isHalfPayment; // If user chose half payment initially
@@ -39,7 +47,8 @@ class RequestModel {
     this.pageCount = 0,
     this.pageType = 'A4',
     this.urgency = 'standard',
-    this.statusHistory = const [],
+    this.timeline = const [],
+    this.payments = const [],
     this.finalAmount = 0.0,
     this.assignedWriterId,
     this.isPageCountVerified = false,
@@ -68,7 +77,8 @@ class RequestModel {
       'pageCount': pageCount,
       'pageType': pageType,
       'urgency': urgency,
-      'statusHistory': statusHistory,
+      'timeline': timeline.map((x) => x.toMap()).toList(),
+      'payments': payments.map((x) => x.toMap()).toList(),
       'finalAmount': finalAmount,
       'assignedWriterId': assignedWriterId,
       'isPageCountVerified': isPageCountVerified,
@@ -98,7 +108,17 @@ class RequestModel {
       pageCount: map['pageCount'] ?? 0,
       pageType: map['pageType'] ?? 'A4',
       urgency: map['urgency'] ?? 'standard',
-       statusHistory: List<Map<String, dynamic>>.from(map['statusHistory'] ?? []),
+      
+      timeline: map['timeline'] != null 
+          ? List<TimelineStep>.from(map['timeline']?.map((x) => TimelineStep.fromMap(x)))
+          : (map['statusHistory'] != null 
+              ? _convertLegacyStatusHistory(List<Map<String, dynamic>>.from(map['statusHistory'])) 
+              : []),
+      
+      payments: map['payments'] != null
+          ? List<PaymentTransaction>.from(map['payments']?.map((x) => PaymentTransaction.fromMap(x)))
+          : [],
+
       finalAmount: (map['finalAmount'] ?? 0).toDouble(),
       assignedWriterId: map['assignedWriterId'],
       isPageCountVerified: map['isPageCountVerified'] ?? false,
@@ -112,5 +132,18 @@ class RequestModel {
       estimatedDeliveryTime: map['estimatedDeliveryTime'],
       deliveryCompletedAt: map['deliveryCompletedAt'] != null ? DateTime.fromMillisecondsSinceEpoch(map['deliveryCompletedAt']) : null,
     );
+  }
+
+  // Helper to migrate old data if needed
+  static List<TimelineStep> _convertLegacyStatusHistory(List<Map<String, dynamic>> history) {
+    return history.map((h) {
+      return TimelineStep(
+        status: h['status'] ?? 'unknown',
+        title: 'Status Update: ${h['status']}',
+        description: 'Legacy status update',
+        timestamp: DateTime.fromMillisecondsSinceEpoch(h['timestamp'] ?? 0),
+        isCompleted: true,
+      );
+    }).toList();
   }
 }

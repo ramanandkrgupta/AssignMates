@@ -9,6 +9,8 @@ class NotificationModel {
   final DateTime createdAt;
   final bool isRead;
   final String status; // 'pending' or 'sent'
+  final String? type; // 'order_update', 'general', etc.
+  final Map<String, dynamic>? payload;
 
   NotificationModel({
     required this.id,
@@ -19,6 +21,8 @@ class NotificationModel {
     required this.createdAt,
     this.isRead = false,
     this.status = 'pending',
+    this.type,
+    this.payload,
   });
 
   Map<String, dynamic> toMap() {
@@ -31,6 +35,8 @@ class NotificationModel {
       'createdAt': createdAt.millisecondsSinceEpoch,
       'isRead': isRead,
       'status': status,
+      'type': type,
+      'payload': payload,
     };
   }
 
@@ -46,6 +52,8 @@ class NotificationModel {
           : DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
       isRead: map['isRead'] ?? false,
       status: map['status'] ?? 'pending',
+      type: map['type'],
+      payload: map['payload'],
     );
   }
 }

@@ -4,7 +4,10 @@ import '../models/user_model.dart';
 import '../models/request_model.dart';
 import '../models/notification_model.dart';
 import '../models/pricing_model.dart';
+import '../models/payment_model.dart';
+import '../models/timeline_step.dart';
 
+// ... (existing constants)
 
 final firestoreProvider = Provider<FirebaseFirestore>((ref) {
   return FirebaseFirestore.instance;
@@ -126,6 +129,27 @@ class FirestoreService {
     await _db.collection('notifications').doc(notification.id).set(notification.toMap());
   }
 
+  Future<void> sendNotification({
+    required String targetUserId,
+    required String title,
+    required String body,
+    String? type,
+    Map<String, dynamic>? payload,
+  }) async {
+    final docRef = _db.collection('notifications').doc();
+    final notification = NotificationModel(
+      id: docRef.id,
+      targetUserId: targetUserId,
+      title: title,
+      body: body,
+      createdAt: DateTime.now(),
+      status: 'pending',
+      type: type,
+      payload: payload,
+    );
+    await docRef.set(notification.toMap());
+  }
+
   Stream<List<NotificationModel>> getNotificationsStream(String userId) {
     // We listen for notifications where targetUserId is 'admin' or matches the specific user
     return _db
@@ -137,6 +161,10 @@ class FirestoreService {
       notifs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return notifs;
     });
+  }
+
+  Future<void> markNotificationAsRead(String notificationId) async {
+    await _db.collection('notifications').doc(notificationId).update({'isRead': true});
   }
 
   Future<void> deleteNotification(String notificationId) async {
@@ -183,6 +211,34 @@ class FirestoreService {
   Future<void> deletePricing(String id) async {
     if (id == 'default') return; // Protect default
     await _db.collection('pricing').doc(id).delete();
+  }
+
+  // --- New Methods for Detailed Flow ---
+
+  Future<void> addPayment(String requestId, PaymentTransaction payment) async {
+    await _db.collection('requests').doc(requestId).update({
+      'payments': FieldValue.arrayUnion([payment.toMap()]),
+      'paymentStatus': payment.amount > 0 ? 'paid' : 'unpaid',
+      'paidAmount': FieldValue.increment(payment.amount),
+    });
+  }
+
+  Future<void> addTimelineStep(String requestId, TimelineStep step) async {
+    await _db.collection('requests').doc(requestId).update({
+      'timeline': FieldValue.arrayUnion([step.toMap()]),
+      'status': step.status,
+    });
+  }
+  
+  Future<void> updateRequestStatusWithStep(String requestId, String status, TimelineStep step, {Map<String, dynamic>? additionalData}) async {
+    final data = <String, dynamic>{
+      'status': status,
+      'timeline': FieldValue.arrayUnion([step.toMap()]),
+    };
+    if (additionalData != null) {
+      data.addAll(additionalData);
+    }
+    await _db.collection('requests').doc(requestId).update(data);
   }
 }
 

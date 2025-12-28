@@ -3,14 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_fonts/google_fonts.dart'; // Added missing import
+import 'package:flutter/services.dart'; // For Clipboard
+import 'package:url_launcher/url_launcher.dart'; // For calls
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../models/request_model.dart';
+import '../../models/user_model.dart'; // Added missing import
 import 'package:lottie/lottie.dart';
 import 'create_request_screen.dart';
 import '../common/media_viewer_screen.dart';
-import '../../models/user_model.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../../models/payment_model.dart';
+import '../../models/timeline_step.dart';
 
 class RequestHistoryScreen extends ConsumerStatefulWidget {
   const RequestHistoryScreen({super.key});
@@ -22,7 +26,7 @@ class RequestHistoryScreen extends ConsumerStatefulWidget {
 class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
   late Razorpay _razorpay;
   RequestModel? _pendingRequest;
-  String? _pendingPaymentType; // 'half', 'full', 'final'
+  String? _pendingPaymentType;
 
   @override
   void initState() {
@@ -35,50 +39,79 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
 
   @override
   void dispose() {
-    super.dispose();
     _razorpay.clear();
+    super.dispose();
   }
 
   void _handlePaymentSuccess(PaymentSuccessResponse response) async {
     if (_pendingRequest != null && _pendingPaymentType != null) {
       final firestoreService = ref.read(firestoreServiceProvider);
       final req = _pendingRequest!;
+      final amountPaid = _pendingPaymentType == 'half' 
+          ? (req.budget / 2) 
+          : (_pendingPaymentType == 'final' ? (req.budget - req.paidAmount) : req.budget);
 
-      Map<String, dynamic> updateData = {};
+      // 1. Create Payment Transaction
+      final transaction = PaymentTransaction(
+        transactionId: response.paymentId ?? 'unknown_tid',
+        orderId: response.orderId ?? 'unknown_oid',
+        signature: response.signature,
+        amount: amountPaid,
+        status: 'success',
+        method: 'razorpay',
+        timestamp: DateTime.now(),
+        metadata: {
+          'paymentType': _pendingPaymentType,
+          'userEmail': ref.read(authStateProvider).value?.email,
+        },
+      );
 
-      if (_pendingPaymentType == 'half') {
-        updateData = {
-          'status': 'in_progress',
-          'paymentStatus': 'half_paid',
-          'paidAmount': (req.budget / 2),
-          'isHalfPayment': true,
-        };
-      } else if (_pendingPaymentType == 'full') {
-        updateData = {
-          'status': 'in_progress',
-          'paymentStatus': 'fully_paid',
-          'paidAmount': req.budget,
-          'isHalfPayment': false,
-        };
-      } else if (_pendingPaymentType == 'final') {
-        updateData = {
-          'status': 'delivering',
-          'paymentStatus': 'fully_paid',
-          'paidAmount': req.budget,
-        };
+      await firestoreService.addPayment(req.id, transaction);
+
+      // 2. Determine Next Status & Timeline Step
+      String nextStatus = 'in_progress';
+      String stepTitle = 'Payment Received';
+      String stepDesc = 'Payment of ₹${amountPaid.toStringAsFixed(0)} received.';
+
+      if (_pendingPaymentType == 'final') {
+        nextStatus = 'delivering';
+        stepTitle = 'Final Payment Received';
+      } else if (_pendingPaymentType == 'half') {
+         // Mark as half payment
+         await firestoreService.updateRequest(req.id, {'isHalfPayment': true});
       }
 
-      await firestoreService.updateRequest(req.id, updateData);
+      // 3. Add Timeline Step
+      final step = TimelineStep(
+        status: nextStatus,
+        title: stepTitle,
+        description: stepDesc,
+        timestamp: DateTime.now(),
+        isCompleted: true,
+        // Set to false to trigger backend notification sending
+        notificationsSent: {'student': false, 'admin': false},
+      );
+
+      await firestoreService.updateRequestStatusWithStep(req.id, nextStatus, step);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Payment Successful! Order updated.', style: TextStyle(fontWeight: FontWeight.bold)),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+               const Text('Payment Successful! Order updated.', style: TextStyle(fontWeight: FontWeight.bold)),
+               Text('Transaction ID: ${response.paymentId}', style: const TextStyle(fontSize: 10)),
+            ],
+          ),
           backgroundColor: Colors.green,
         ));
       }
 
-      _pendingRequest = null;
-      _pendingPaymentType = null;
+      setState(() {
+        _pendingRequest = null;
+        _pendingPaymentType = null;
+      });
     } else {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment Success: ${response.paymentId}')));
     }
@@ -113,8 +146,10 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
       }
     }
 
-    _pendingRequest = request;
-    _pendingPaymentType = isHalf ? 'half' : (isFinal ? 'final' : 'full');
+    setState(() {
+      _pendingRequest = request;
+      _pendingPaymentType = isHalf ? 'half' : (isFinal ? 'final' : 'full');
+    });
 
     int amountInPaise = 0;
     if (isFinal) {
@@ -149,6 +184,32 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
       debugPrint('Error: $e');
     }
   }
+
+  Future<void> _verifyWork(RequestModel request) async {
+      await ref.read(firestoreServiceProvider).updateRequest(request.id, {
+        'status': request.isHalfPayment ? 'payment_remaining_pending' : 'delivering',
+      });
+  }
+  
+  Future<void> _cancelOrder(RequestModel request) async {
+  bool? confirm = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Cancel Order?', style: TextStyle(color: Colors.white)),
+      backgroundColor: const Color(0xFF1E1E1E),
+      content: const Text('Are you sure you want to cancel this order? This cannot be undone.', style: TextStyle(color: Colors.white70)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No', style: TextStyle(color: Colors.white))),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Yes, Cancel', style: TextStyle(color: Colors.red))),
+      ],
+    ),
+  );
+
+  if (confirm == true) {
+     await ref.read(firestoreServiceProvider).updateRequest(request.id, {'status': 'cancelled'});
+     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order Cancelled')));
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -788,30 +849,5 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _verifyWork(RequestModel request) async {
-      await ref.read(firestoreServiceProvider).updateRequest(request.id, {
-        'status': request.isHalfPayment ? 'payment_remaining_pending' : 'delivering',
-      });
-  }
-
-  Future<void> _cancelOrder(RequestModel request) async {
-    bool? confirm = await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: const Text('Cancel Order?', style: TextStyle(color: Colors.white)),
-        content: const Text('Are you sure you want to cancel this order? This action cannot be undone.', style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No', style: TextStyle(color: Colors.grey))),
-          TextButton(onPressed: () => Navigator.pop(context, true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Yes, Cancel')),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      await ref.read(firestoreServiceProvider).updateRequest(request.id, {'status': 'cancelled'});
-    }
   }
 }

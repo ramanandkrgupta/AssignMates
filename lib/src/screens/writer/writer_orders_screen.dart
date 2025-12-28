@@ -12,6 +12,8 @@ import '../../services/notification_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/audio_player_widget.dart';
 import '../common/media_viewer_screen.dart';
+import '../common/notification_screen.dart';
+import '../../models/timeline_step.dart';
 
 class WriterOrdersScreen extends ConsumerStatefulWidget {
   const WriterOrdersScreen({super.key});
@@ -35,6 +37,10 @@ class _WriterOrdersScreenState extends ConsumerState<WriterOrdersScreen> {
         backgroundColor: Colors.black,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: Color(0xFFFFAF00)),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationScreen())),
+          ),
           IconButton(
             icon: const Icon(Icons.phone, color: Color(0xFFFFAF00)),
             onPressed: () => _callAdmin(),
@@ -119,7 +125,34 @@ class _WriterOrdersScreenState extends ConsumerState<WriterOrdersScreen> {
                 _buildMediaSection(request),
 
                 const SizedBox(height: 24),
-                if (canUpload)
+                if (request.status == 'assigned')
+                   SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                         await ref.read(firestoreServiceProvider).updateRequestStatusWithStep(
+                           request.id, 
+                           'in_progress',
+                             TimelineStep(
+                             status: 'in_progress',
+                             title: 'Writer Started',
+                             description: 'Writer has started working',
+                             timestamp: DateTime.now(),
+                             notificationsSent: {'student': false},
+                           )
+                         );
+                      },
+                      icon: const Icon(Icons.play_arrow),
+                      label: Text('START WORK', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  )
+                else if (canUpload)
                   SizedBox(
                     width: double.infinity,
                     height: 50,
@@ -260,14 +293,18 @@ class _WriterOrdersScreenState extends ConsumerState<WriterOrdersScreen> {
         if (url != null) uploadedUrls.add(url);
       }
 
-      await ref.read(firestoreServiceProvider).updateRequest(request.id, {
-        'status': 'review_pending',
-        'verificationPhotos': uploadedUrls,
-        'statusHistory': FieldValue.arrayUnion([{
-          'status': 'review_pending',
-          'timestamp': DateTime.now().millisecondsSinceEpoch
-        }])
-      });
+      await ref.read(firestoreServiceProvider).updateRequestStatusWithStep(
+        request.id,
+        'review_pending',
+        TimelineStep(
+          status: 'review_pending',
+          title: 'Proof Submitted',
+          description: 'Writer uploaded verification photos',
+          timestamp: DateTime.now(),
+          notificationsSent: {'admin': false},
+        ),
+        additionalData: {'verificationPhotos': uploadedUrls}
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Work submitted for review!'), backgroundColor: Colors.green));

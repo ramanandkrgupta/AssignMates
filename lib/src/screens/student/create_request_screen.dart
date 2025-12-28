@@ -19,6 +19,7 @@ import '../../models/user_model.dart';
 import '../../services/notification_service.dart';
 import '../home/home_screen.dart';
 import '../../models/pricing_model.dart';
+import '../../models/timeline_step.dart';
 
 class CreateRequestScreen extends ConsumerStatefulWidget {
   const CreateRequestScreen({super.key});
@@ -410,18 +411,25 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         studentId: user.uid,
         instructions: _instructionsController.text.trim(),
         deadline: _deadline!,
-        budget: 0.0, // Set by admin usually, or we can set estimated? Let's leave 0 for admin to verify
+        budget: 0.0,
         status: 'created',
         attachmentUrls: attachmentUrls,
         mediaUrls: mediaUrls,
         voiceNoteUrl: mainVoiceUrl,
         pageType: _pageType,
-        pageCount: _pageCount, // New field needed in model? Using existing or map?
-        // Check RequestModel: it has pageType, but pageCount needed.
-        // We will store it in custom data or update model later.
-        // For now let's assume valid fields or put in instructions.
-        statusHistory: [{'status': 'created', 'timestamp': DateTime.now().millisecondsSinceEpoch}],
+        pageCount: _pageCount,
         createdAt: DateTime.now(),
+        timeline: [
+          TimelineStep(
+            status: 'created',
+            title: 'Order Created',
+            description: 'Order placed successfully. Waiting for admin verification.',
+            timestamp: DateTime.now(),
+            isCompleted: true,
+            // Set to false to trigger backend notification sending
+            notificationsSent: {'admin': false, 'student': false},
+          ),
+        ],
       );
 
       await firestoreService.createRequest(newRequest);
@@ -436,13 +444,18 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         notificationService.notifyAdmins(
           title: 'New Order Received! 🚀',
           body: 'From $studentCity, $studentName created ${newRequest.pageCount} pages order',
+          type: 'new_order',
+          payload: {'requestId': newRequest.id},
         );
+
 
         // 2. Notify User (The requested message)
         notificationService.notifyUser(
           userId: user.uid,
           title: 'Order Received! ✅',
           body: 'Your order is on the way! You will get a call in 10 minutes.',
+          type: 'order_created',
+          payload: {'requestId': newRequest.id},
         );
 
         // 3. Switch to History Tab and close screen

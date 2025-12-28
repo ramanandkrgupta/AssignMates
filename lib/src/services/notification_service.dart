@@ -134,31 +134,48 @@ class NotificationService {
     required String targetUserId,
     required String title,
     required String body,
+    String? type,
+    Map<String, dynamic>? payload,
   }) async {
-    final currentUser = _ref.read(authStateProvider).value;
-
-    // 1. Persist to Firestore as a bridge for real-time sync across devices
-    final notification = NotificationModel(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+    // 1. Persist to Firestore (Backend Listener will pick this up and send FCM)
+    await _ref.read(firestoreServiceProvider).sendNotification(
       targetUserId: targetUserId,
-      senderId: currentUser?.uid,
       title: title,
       body: body,
-      createdAt: DateTime.now(),
+      type: type,
+      payload: payload,
     );
-
-    await _ref.read(firestoreServiceProvider).createNotification(notification);
-
-    // 2. Original Logging
-    print('Notification Persisted to Firestore: $title - $body for $targetUserId');
+    print('Notification Persisted: $title - $body for $targetUserId');
   }
 
-  Future<void> notifyAdmins({required String title, required String body}) async {
-    // Target 'admin' bridge
-    await sendNotification(targetUserId: 'admin', title: title, body: body);
+  Future<void> notifyAdmins({
+    required String title, 
+    required String body, 
+    String? type, 
+    Map<String, dynamic>? payload
+  }) async {
+    await sendNotification(
+      targetUserId: 'admin', 
+      title: title, 
+      body: body,
+      type: 'admin_alert', // specific type for admin?
+      payload: payload
+    );
   }
 
-  Future<void> notifyUser({required String userId, required String title, required String body}) async {
-    await sendNotification(targetUserId: userId, title: title, body: body);
+  Future<void> notifyUser({
+    required String userId, 
+    required String title, 
+    required String body,
+    String? type,
+    Map<String, dynamic>? payload,
+  }) async {
+    await sendNotification(
+      targetUserId: userId, 
+      title: title, 
+      body: body,
+      type: type,
+      payload: payload,
+    );
   }
 }

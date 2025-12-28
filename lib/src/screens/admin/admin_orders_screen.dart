@@ -14,6 +14,8 @@ import 'package:intl/intl.dart';
 import '../../widgets/audio_player_widget.dart';
 import '../common/media_viewer_screen.dart';
 import '../../services/notification_service.dart';
+import '../common/notification_screen.dart';
+import '../../models/timeline_step.dart';
 
 class AdminOrdersScreen extends ConsumerStatefulWidget {
   const AdminOrdersScreen({super.key});
@@ -22,79 +24,74 @@ class AdminOrdersScreen extends ConsumerStatefulWidget {
   ConsumerState<AdminOrdersScreen> createState() => _AdminOrdersScreenState();
 }
 
-class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
+class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
+  // Removed explicit TabController
 
   @override
   Widget build(BuildContext context) {
     final firestoreService = ref.watch(firestoreServiceProvider);
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: Text('Manage Orders', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white)),
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
         backgroundColor: Colors.black,
-        elevation: 0,
-        centerTitle: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Color(0xFFFFAF00)),
-            onPressed: () => ref.read(authControllerProvider.notifier).signOut(),
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: const Color(0xFFFFAF00),
-          labelColor: const Color(0xFFFFAF00),
-          unselectedLabelColor: Colors.white70,
-          labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold),
-          tabs: const [
-            Tab(text: 'Ongoing'),
-            Tab(text: 'Completed'),
-            Tab(text: 'Cancelled'),
+        appBar: AppBar(
+          title: Text('Manage Orders', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white)),
+          backgroundColor: Colors.black,
+          elevation: 0,
+          centerTitle: false,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined, color: Color(0xFFFFAF00)),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationScreen())),
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout, color: Color(0xFFFFAF00)),
+              onPressed: () => ref.read(authControllerProvider.notifier).signOut(),
+            ),
           ],
-        ),
-      ),
-      body: StreamBuilder<List<RequestModel>>(
-        stream: firestoreService.getAllRequestsStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFFFFAF00)));
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
-          }
-          final requests = snapshot.data ?? [];
-
-          return TabBarView(
-            controller: _tabController,
-            children: [
-              _buildOrderList(requests.where((r) => r.status != 'completed' && r.status != 'cancelled').toList()),
-              _buildOrderList(requests.where((r) => r.status == 'completed').toList()),
-              _buildOrderList(requests.where((r) => r.status == 'cancelled').toList()),
+          bottom: TabBar(
+            // controller: _tabController, // Removed
+            indicatorColor: const Color(0xFFFFAF00),
+            labelColor: const Color(0xFFFFAF00),
+            unselectedLabelColor: Colors.white70,
+            labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            tabs: const [
+              Tab(text: 'Ongoing'),
+              Tab(text: 'Completed'),
+              Tab(text: 'Cancelled'),
             ],
-          );
-        },
+          ),
+        ),
+        body: StreamBuilder<List<RequestModel>>(
+          stream: firestoreService.getAllRequestsStream(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator(color: Color(0xFFFFAF00)));
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
+            }
+            final requests = snapshot.data ?? [];
+
+            return TabBarView(
+              // controller: _tabController, // Removed
+              children: [
+                _buildOrderList(requests.where((r) => r.status != 'completed' && r.status != 'cancelled').toList(), 0),
+                _buildOrderList(requests.where((r) => r.status == 'completed').toList(), 1),
+                _buildOrderList(requests.where((r) => r.status == 'cancelled').toList(), 2),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildOrderList(List<RequestModel> orders) {
+  Widget _buildOrderList(List<RequestModel> orders, int tabIndex) {
     return Column(
       children: [
-        if (_tabController.index == 0) // Only on Ongoing tab
+        if (tabIndex == 0) // Only on Ongoing tab
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: ElevatedButton.icon(
@@ -123,6 +120,15 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> with Sing
                    mediaUrls: {},
                    pageCount: 1,
                    createdAt: DateTime.now(),
+                   timeline: [
+                      TimelineStep(
+                        status: 'created',
+                        title: 'Order Created',
+                        description: 'Simulated Order Created',
+                        timestamp: DateTime.now(),
+                        notificationsSent: {'admin': true},
+                      )
+                   ],
                  );
 
                  await firestore.createRequest(newRequest);
@@ -471,6 +477,15 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> with Sing
                    await ref.read(firestoreServiceProvider).updateRequest(request.id, {
                      'estimatedDeliveryTime': deliveryController.text,
                    });
+                   
+                   // Explicit notification for non-timeline update (Delivery Time)
+                   await ref.read(notificationServiceProvider).notifyUser(
+                     userId: request.studentId,
+                     title: 'Delivery Update 🚚',
+                     body: 'Estimated Delivery: ${deliveryController.text}',
+                     type: 'delivery_update',
+                     payload: {'requestId': request.id}
+                   );
                    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delivery time updated!')));
                 },
               ),
@@ -483,9 +498,16 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> with Sing
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
-                    await ref.read(firestoreServiceProvider).updateRequestStatus(
+                    await ref.read(firestoreServiceProvider).updateRequestStatusWithStep(
                       request.id,
                       'completed',
+                      TimelineStep(
+                        status: 'completed',
+                        title: 'Order Completed',
+                        description: 'Order delivered and completed.',
+                        timestamp: DateTime.now(),
+                        notificationsSent: {'student': false},
+                      ),
                       additionalData: {'deliveryCompletedAt': DateTime.now().millisecondsSinceEpoch}
                     );
                     if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order marked as Completed!')));
@@ -651,9 +673,16 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> with Sing
           ElevatedButton(
             onPressed: () async {
               final count = int.tryParse(pageController.text) ?? request.pageCount;
-              await ref.read(firestoreServiceProvider).updateRequestStatus(
+              await ref.read(firestoreServiceProvider).updateRequestStatusWithStep(
                 request.id,
                 'verified',
+                TimelineStep(
+                  status: 'verified',
+                  title: 'Order Verified',
+                  description: 'Admin verified order. Page Count: $count',
+                  timestamp: DateTime.now(),
+                  notificationsSent: {'student': false},
+                ),
                 additionalData: {'pageCount': count, 'isPageCountVerified': true}
               );
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order verified!')));

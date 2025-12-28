@@ -8,6 +8,7 @@ import '../student/request_history_screen.dart';
 import '../student/profile_screen.dart';
 
 import '../student/support_screen.dart';
+import '../common/notification_screen.dart';
 
 final homeTabIndexProvider = StateProvider<int>((ref) => 0);
 
@@ -124,11 +125,22 @@ class _HomeContent extends ConsumerWidget {
                     ),
                   ],
                  ),
-                 CircleAvatar(
-                   radius: 24,
-                   backgroundColor: Colors.grey[200],
-                   backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
-                   child: user?.photoURL == null ? const Icon(Icons.person, color: Colors.grey) : null,
+                 Row(
+                   children: [
+                     IconButton(
+                       icon: const Icon(Icons.notifications_outlined, size: 28, color: Colors.black),
+                       onPressed: () {
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationScreen()));
+                       },
+                     ),
+                     const SizedBox(width: 12),
+                     CircleAvatar(
+                       radius: 24,
+                       backgroundColor: Colors.grey[200],
+                       backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
+                       child: user?.photoURL == null ? const Icon(Icons.person, color: Colors.grey) : null,
+                     ),
+                   ],
                  ),
               ],
             ),

@@ -4,9 +4,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/request_model.dart';
 import '../../models/user_model.dart';
-import '../../models/user_model.dart';
 import '../../services/firestore_service.dart';
 import '../../models/pricing_model.dart';
+import '../../services/notification_service.dart';
+import '../../models/timeline_step.dart';
 
 class AssignWriterScreen extends ConsumerWidget {
   final RequestModel request;
@@ -189,15 +190,24 @@ class AssignWriterScreen extends ConsumerWidget {
 
                                   if (result != null) {
                                     final double finalBudget = result['budget'];
-                                    await ref.read(firestoreServiceProvider).updateRequestStatus(
+                                    await ref.read(firestoreServiceProvider).updateRequestStatusWithStep(
                                       request.id,
                                       'assigned',
+                                      TimelineStep(
+                                        status: 'assigned',
+                                        title: 'Writer Assigned',
+                                        description: 'Writer ${writer.displayName} assigned. Budget: ₹${finalBudget.toStringAsFixed(0)}',
+                                        timestamp: DateTime.now(),
+                                        // Trigger backend notifications
+                                        notificationsSent: {'student': false, 'writer': false},
+                                      ),
                                       additionalData: {
                                         'assignedWriterId': writer.uid,
                                         'budget': finalBudget,
                                         'finalAmount': finalBudget,
                                       }
                                     );
+
                                     if (context.mounted) {
                                       Navigator.pop(context);
                                       ScaffoldMessenger.of(context).showSnackBar(

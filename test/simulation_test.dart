@@ -6,6 +6,7 @@ import 'package:assignmates/src/services/firestore_service.dart';
 import 'package:assignmates/src/services/notification_service.dart';
 import 'package:assignmates/src/models/request_model.dart';
 import 'package:assignmates/src/models/user_model.dart';
+import 'package:assignmates/src/models/timeline_step.dart';
 
 void main() {
   // This test requires internet and Firebase config to be valid in the env
@@ -49,7 +50,15 @@ void main() {
       mediaUrls: {},
       pageCount: 1,
       createdAt: DateTime.now(),
-      statusHistory: [{'status': 'created', 'timestamp': DateTime.now().millisecondsSinceEpoch}],
+      timeline: [
+         TimelineStep(
+            status: 'created',
+             title: 'Simulated Order',
+             description: 'Test order created via simulation',
+             timestamp: DateTime.now(),
+             notificationsSent: {'admin': true}
+         )
+      ],
     );
 
     print('📦 Creating Request in Firestore...');

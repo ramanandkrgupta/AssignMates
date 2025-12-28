@@ -25,6 +25,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       await ref.read(authControllerProvider.notifier).signInWithGoogle();
+      
+      // Check for error in the controller state
+      final authState = ref.read(authControllerProvider);
+      if (authState.hasError) {
+         throw authState.error ?? 'Unknown error';
+      }
+
       // Fake delay to show the nice animation as requested
       await Future.delayed(const Duration(seconds: 3));
 
@@ -49,6 +56,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               );
             }
           }
+        } else {
+           // Auth user is null even after success call - likely cancelled or failed silently
+           setState(() => _isLoading = false);
         }
       }
     } catch (e) {

@@ -47,8 +47,8 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
     if (_pendingRequest != null && _pendingPaymentType != null) {
       final firestoreService = ref.read(firestoreServiceProvider);
       final req = _pendingRequest!;
-      final amountPaid = _pendingPaymentType == 'half' 
-          ? (req.budget / 2) 
+      final amountPaid = _pendingPaymentType == 'half'
+          ? (req.budget / 2)
           : (_pendingPaymentType == 'final' ? (req.budget - req.paidAmount) : req.budget);
 
       // 1. Create Payment Transaction
@@ -71,11 +71,12 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
       // 2. Determine Next Status & Timeline Step
       String nextStatus = 'in_progress';
       String stepTitle = 'Payment Received';
-      String stepDesc = 'Payment of ₹${amountPaid.toStringAsFixed(0)} received.';
+      String stepDesc = 'Thanks for payment! We received ₹${amountPaid.toStringAsFixed(0)}. Payment successful!';
 
       if (_pendingPaymentType == 'final') {
         nextStatus = 'delivering';
         stepTitle = 'Final Payment Received';
+        stepDesc = 'Thanks for payment! We received ₹${amountPaid.toStringAsFixed(0)}. Payment successful! Your order is on the way! ✅';
       } else if (_pendingPaymentType == 'half') {
          // Mark as half payment
          await firestoreService.updateRequest(req.id, {'isHalfPayment': true});
@@ -130,11 +131,11 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
     String contact = '';
     String email = '';
     final authUser = ref.read(authStateProvider).value;
-    
+
     if (authUser != null) {
       email = authUser.email ?? '';
       contact = authUser.phoneNumber ?? '';
-      
+
       try {
         final appUser = await ref.read(firestoreServiceProvider).getUser(authUser.uid);
         if (appUser != null) {
@@ -190,7 +191,7 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
         'status': request.isHalfPayment ? 'payment_remaining_pending' : 'delivering',
       });
   }
-  
+
   Future<void> _cancelOrder(RequestModel request) async {
   bool? confirm = await showDialog<bool>(
     context: context,

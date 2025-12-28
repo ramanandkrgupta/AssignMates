@@ -8,10 +8,12 @@ import 'assign_writer_screen.dart';
 import '../../models/request_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/notification_provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../../widgets/audio_player_widget.dart';
+import '../../widgets/animated_notification_icon.dart';
 import '../common/media_viewer_screen.dart';
 import '../../services/notification_service.dart';
 import '../common/notification_screen.dart';
@@ -41,9 +43,20 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
           elevation: 0,
           centerTitle: false,
           actions: [
-            IconButton(
-              icon: const Icon(Icons.notifications_outlined, color: Color(0xFFFFAF00)),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationScreen())),
+            Consumer(
+              builder: (context, ref, child) {
+                final unreadCount = ref.watch(unreadNotificationsCountProvider).value ?? 0;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: Center(
+                    child: AnimatedNotificationIcon(
+                      unreadCount: unreadCount,
+                      iconColor: const Color(0xFFFFAF00),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationScreen())),
+                    ),
+                  ),
+                );
+              },
             ),
             IconButton(
               icon: const Icon(Icons.logout, color: Color(0xFFFFAF00)),
@@ -477,12 +490,12 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
                    await ref.read(firestoreServiceProvider).updateRequest(request.id, {
                      'estimatedDeliveryTime': deliveryController.text,
                    });
-                   
+
                    // Explicit notification for non-timeline update (Delivery Time)
                    await ref.read(notificationServiceProvider).notifyUser(
                      userId: request.studentId,
                      title: 'Delivery Update 🚚',
-                     body: 'Estimated Delivery: ${deliveryController.text}',
+                     body: 'Your order is on the way! Estimated Delivery: ${deliveryController.text}',
                      type: 'delivery_update',
                      payload: {'requestId': request.id}
                    );

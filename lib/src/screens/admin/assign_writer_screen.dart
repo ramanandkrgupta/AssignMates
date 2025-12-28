@@ -113,14 +113,14 @@ class AssignWriterScreen extends ConsumerWidget {
                                 // Show loading? For now just await
                                 try {
                                   final firestore = ref.read(firestoreServiceProvider);
-                                  
+
                                   // 1. Fetch Student for City
                                   final student = await firestore.getUser(request.studentId);
                                   final city = student?.city ?? 'Default';
-                                  
+
                                   // 2. Fetch Pricing
                                   final pricing = await firestore.getPricing(city);
-                                  
+
                                   // 3. Calculate Estimate
                                   final budgetController = TextEditingController();
                                   double estPrice = 0.0;
@@ -196,7 +196,7 @@ class AssignWriterScreen extends ConsumerWidget {
                                       TimelineStep(
                                         status: 'assigned',
                                         title: 'Writer Assigned',
-                                        description: 'Writer ${writer.displayName} assigned. Budget: ₹${finalBudget.toStringAsFixed(0)}',
+                                        description: 'A writer has been assigned to your order. Final Budget: ₹${finalBudget.toStringAsFixed(0)}. Please pay the amount now.',
                                         timestamp: DateTime.now(),
                                         // Trigger backend notifications
                                         notificationsSent: {'student': false, 'writer': false},

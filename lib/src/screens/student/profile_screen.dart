@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/user_model.dart';
 import '../../services/firestore_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../providers/stats_provider.dart';
+import 'support_screen.dart';
+import '../common/privacy_policy_screen.dart';
+import '../common/terms_service_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -14,217 +17,263 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userAsync = ref.watch(currentUserStreamProvider);
+    final statsAsync = ref.watch(studentOrderStatsProvider);
     final user = userAsync.value;
 
     if (user == null) {
-      return const Scaffold(backgroundColor: Colors.transparent, body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(backgroundColor: Colors.white, body: Center(child: CircularProgressIndicator(color: Color(0xFFFFAF00))));
     }
-
-    // Mock stats for now
-    final stats = [
-      {'label': 'Requests', 'value': '12'},
-      {'label': 'Completed', 'value': '8'},
-      {'label': 'Pending', 'value': '4'},
-    ];
 
     const primaryOrange = Color(0xFFFFAF00);
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Profile', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFFFFAF00),
+        title: Text('Account', style: GoogleFonts.outfit(color: Colors.black, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white,
         elevation: 0,
-        centerTitle: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
-        ),
+        centerTitle: false,
         iconTheme: const IconThemeData(color: Colors.black),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout, color: Colors.black),
-            onPressed: () => _showLogoutDialog(context, ref),
+            icon: const Icon(Icons.settings_outlined, color: Colors.black54),
+            onPressed: () {}, // For future settings
           ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 120), // Extra bottom padding for navigation
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 10),
-            Center(
-              child: Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundImage: user.photoURL != null ? NetworkImage(user.photoURL!) : null,
-                    backgroundColor: Colors.grey[200],
-                    child: user.photoURL == null
-                        ? const Icon(Icons.person, size: 50, color: Colors.grey)
-                        : null,
-                  ).animate().scale(duration: 500.ms, curve: Curves.easeOutBack),
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(
-                      color: primaryOrange,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.edit, size: 16, color: Colors.white),
-                  ).animate().fadeIn(delay: 400.ms),
-                ],
-              ),
+            // Profile Header Section
+            _buildProfileHeader(user, primaryOrange),
+            const SizedBox(height: 40),
+
+            // Order Quick Stats
+            statsAsync.when(
+              data: (stats) => _buildQuickStats(stats, primaryOrange),
+              loading: () => _buildQuickStats(OrderStats(), primaryOrange),
+              error: (_, __) => _buildQuickStats(OrderStats(), primaryOrange),
             ),
+            const SizedBox(height: 40),
+
+            // Account Information Section
+            _buildSectionTitle('ACCOUNT INFORMATION'),
             const SizedBox(height: 16),
-            Text(
-              user.displayName ?? 'Student',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-            ).animate().fadeIn().slideY(begin: 0.5),
-            Text(
-              user.email ?? '',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey[700],
-                  ),
-            ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.5),
-            const SizedBox(height: 32),
-
-            // Stats Row
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 5)),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: stats.map((stat) {
-                  return Column(
-                    children: [
-                      Text(
-                        stat['value']!,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: primaryOrange,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        stat['label']!,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2),
+            _buildInfoCard(context, ref, user, primaryOrange),
 
             const SizedBox(height: 32),
 
-             // Personal Details Section
-            Text(
-              'Personal Details',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Colors.black),
-            ).animate().fadeIn(delay: 400.ms),
-            const SizedBox(height: 16),
+            // Support & Policy Section
+            _buildSectionTitle('SUPPORT & LEGAL'),
+            const SizedBox(height: 12),
+            _buildMenuTile(context, Icons.headset_mic_outlined, 'Help & Support', onTap: () {
+               Navigator.push(context, MaterialPageRoute(builder: (context) => const SupportScreen()));
+            }),
+            _buildMenuTile(context, Icons.privacy_tip_outlined, 'Privacy Policy', onTap: () {
+               Navigator.push(context, MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()));
+            }),
+            _buildMenuTile(context, Icons.description_outlined, 'Terms of Service', onTap: () {
+               Navigator.push(context, MaterialPageRoute(builder: (context) => const TermsOfServiceScreen()));
+            }),
 
-            _buildEditableTile(
-              context,
-              ref,
-              user,
-              'City',
-              user.city ?? 'Add City',
-              Icons.location_city,
-              'city'
-            ),
-            _buildEditableTile(
-              context,
-              ref,
-              user,
-              'Mobile Number',
-              user.phoneNumber ?? 'Add Mobile Number',
-              Icons.phone,
-              'phoneNumber'
-            ),
-             _buildEditableTile(
-              context,
-              ref,
-              user,
-              'Location',
-              user.location ?? 'Add Location',
-              Icons.location_on,
-              'location',
-              isLocation: true
-            ),
+            const SizedBox(height: 40),
 
-            const SizedBox(height: 32),
-            _buildSettingsItem(context, Icons.history, 'Notification History'),
-            _buildSettingsItem(context, Icons.help_outline, 'Help & Support'),
-            _buildSettingsItem(context, Icons.privacy_tip_outlined, 'Privacy Policy'),
-
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  ref.read(authControllerProvider.notifier).signOut();
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
-                icon: const Icon(Icons.logout),
-                label: const Text('Sign Out'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.red,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.red.withValues(alpha: 0.2)),
-                  ),
-                ),
-              ),
-            ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.5),
+            // Logout Button
+            _buildLogoutButton(context, ref, primaryOrange),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildEditableTile(BuildContext context, WidgetRef ref, AppUser user, String title, String value, IconData icon, String fieldKey, {bool isLocation = false}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-         color: Colors.white,
-         borderRadius: BorderRadius.circular(12),
-         boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 5, offset: const Offset(0, 2)),
-         ],
-      ),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: const Color(0xFFFFAF00).withValues(alpha: 0.1), shape: BoxShape.circle),
-          child: Icon(icon, color: const Color(0xFFFFAF00), size: 20),
+  Widget _buildProfileHeader(AppUser user, Color primaryOrange) {
+    // Calculate profile completion %
+    int filled = 0;
+    if (user.city != null) filled++;
+    if (user.phoneNumber != null) filled++;
+    if (user.location != null) filled++;
+    final double completion = filled / 3.0;
+
+    return Row(
+      children: [
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(
+              width: 90,
+              height: 90,
+              child: CircularProgressIndicator(
+                value: completion,
+                backgroundColor: primaryOrange.withOpacity(0.1),
+                color: primaryOrange,
+                strokeWidth: 3,
+              ),
+            ),
+            CircleAvatar(
+              radius: 38,
+              backgroundImage: user.photoURL != null ? NetworkImage(user.photoURL!) : null,
+              backgroundColor: Colors.grey[100],
+              child: user.photoURL == null ? const Icon(Icons.person, size: 38, color: Colors.grey) : null,
+            ),
+          ],
         ),
-        title: Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-        subtitle: Text(value, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
-        trailing: const Icon(Icons.edit, color: Colors.grey, size: 20),
-        onTap: () => _showEditDialog(context, ref, user, title, value, fieldKey, isLocation: isLocation),
+        const SizedBox(width: 20),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                user.displayName ?? 'Student',
+                style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                user.email ?? '',
+                style: GoogleFonts.outfit(fontSize: 14, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: primaryOrange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  completion == 1.0 ? 'Profile Complete' : 'Finish your profile',
+                  style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, color: primaryOrange),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickStats(OrderStats stats, Color primaryOrange) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+       decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E), // Dark premium card
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 10)),
+        ],
       ),
-    ).animate().fadeIn(delay: 500.ms);
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildStatItem('Active', stats.active.toString(), primaryOrange),
+          Container(width: 1, height: 30, color: Colors.white12),
+          _buildStatItem('Completed', stats.completed.toString(), Colors.white),
+          Container(width: 1, height: 30, color: Colors.white12),
+          _buildStatItem('Cancelled', stats.cancelled.toString(), Colors.white38),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, Color valueColor) {
+    return Column(
+      children: [
+        Text(value, style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: valueColor)),
+        const SizedBox(height: 4),
+        Text(label, style: GoogleFonts.outfit(fontSize: 12, color: Colors.white38)),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: GoogleFonts.outfit(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        color: const Color(0xFFFFAF00),
+        letterSpacing: 1.5,
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(BuildContext context, WidgetRef ref, AppUser user, Color primaryOrange) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        children: [
+          _buildInfoTile(context, ref, user, 'Phone', user.phoneNumber ?? 'Add Number', Icons.phone_outlined, 'phoneNumber'),
+          _buildDivider(),
+          _buildInfoTile(context, ref, user, 'City', user.city ?? 'Add City', Icons.location_city_outlined, 'city'),
+          _buildDivider(),
+          _buildInfoTile(context, ref, user, 'Full Address', user.location ?? 'Add Address', Icons.map_outlined, 'location', isLocation: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoTile(BuildContext context, WidgetRef ref, AppUser user, String label, String value, IconData icon, String key, {bool isLocation = false}) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.grey[200]!)),
+        child: Icon(icon, size: 20, color: Colors.black87),
+      ),
+      title: Text(label, style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey)),
+      subtitle: Text(value, style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black)),
+      trailing: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFFFFAF00)),
+      onTap: () => _showEditDialog(context, ref, user, label, value, key, isLocation: isLocation),
+    );
+  }
+
+  Widget _buildDivider() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 20),
+    child: Divider(height: 1, color: Colors.grey[200]),
+  );
+
+  Widget _buildMenuTile(BuildContext context, IconData icon, String title, {VoidCallback? onTap}) {
+    return ListTile(
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+      leading: Container(
+         padding: const EdgeInsets.all(8),
+         decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(10)),
+         child: Icon(icon, size: 20, color: Colors.black54),
+      ),
+      title: Text(title, style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.black87)),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+    );
+  }
+
+  Widget _buildLogoutButton(BuildContext context, WidgetRef ref, Color primaryOrange) {
+    return InkWell(
+      onTap: () => _showLogoutDialog(context, ref),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          color: Colors.red[50],
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.logout_rounded, color: Colors.red, size: 20),
+            const SizedBox(width: 10),
+            Text('Sign Out', style: GoogleFonts.outfit(color: Colors.red, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _showEditDialog(BuildContext context, WidgetRef ref, AppUser user, String title, String currentValue, String fieldKey, {bool isLocation = false}) async {
-    final controller = TextEditingController(text: currentValue == 'Add $title' ? '' : currentValue);
+    final controller = TextEditingController(text: currentValue.contains('Add') ? '' : currentValue);
     bool isLoading = false;
 
     await showDialog(
@@ -232,7 +281,8 @@ class ProfileScreen extends ConsumerWidget {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: Text('Update $title'),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: Text('Update $title', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -260,45 +310,36 @@ class ProfileScreen extends ConsumerWidget {
                             final placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
                             if (placemarks.isNotEmpty) {
                                final place = placemarks.first;
-                               final fetched = '${place.street}, ${place.subLocality}, ${place.locality}, ${place.postalCode}';
-                               controller.text = fetched;
+                               controller.text = '${place.street}, ${place.subLocality}, ${place.locality}';
                             }
                          } catch (e) {
-                            debugPrint('GPS Error: $e');
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('GPS Error: $e'), backgroundColor: Colors.red));
-                            }
+                             debugPrint('GPS Error: $e');
+                             if (context.mounted) {
+                               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('GPS Error: $e'), backgroundColor: Colors.red));
+                             }
                          } finally {
-                            if (context.mounted) {
-                               setDialogState(() => isLoading = false);
-                            }
+                            if (context.mounted) setDialogState(() => isLoading = false);
                          }
                       },
-                      icon: isLoading
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.my_location),
-                      label: Text(isLoading ? 'Detecting...' : 'Detect GPS Location'),
+                      icon: isLoading ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.my_location),
+                      label: Text(isLoading ? 'Detecting...' : 'Use My GPS'),
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white),
                     ),
                     const SizedBox(height: 10),
-                    const Text('OR', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                     const SizedBox(height: 10),
                 ],
                 TextField(
                   controller: controller,
                   decoration: InputDecoration(
                     hintText: 'Enter $title',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
                   ),
+                  style: GoogleFonts.outfit(),
                   maxLines: isLocation ? 3 : 1,
-                  keyboardType: isLocation
-                      ? TextInputType.multiline
-                      : (fieldKey == 'phoneNumber' ? TextInputType.phone : TextInputType.text),
                 ),
               ],
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+              TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel', style: GoogleFonts.outfit(color: Colors.grey))),
               ElevatedButton(
                 onPressed: () async {
                   if (controller.text.isNotEmpty) {
@@ -320,54 +361,20 @@ class ProfileScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-           children: [
-             const Icon(Icons.logout, color: Colors.red),
-             const SizedBox(width: 10),
-             Text('Sign Out', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-           ],
-        ),
-        content: Text('Do you really want to logout?', style: GoogleFonts.outfit(fontSize: 16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text('Sign Out', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: Text('Are you sure you want to log out?', style: GoogleFonts.outfit()),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('No', style: GoogleFonts.outfit(color: Colors.grey, fontWeight: FontWeight.bold)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Stay')),
           ElevatedButton(
             onPressed: () {
               ref.read(authControllerProvider.notifier).signOut();
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
-            style: ElevatedButton.styleFrom(
-               backgroundColor: const Color(0xFFFFAF00),
-               foregroundColor: Colors.white,
-               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: Text('Yes', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('Exit'),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSettingsItem(BuildContext context, IconData icon, String title) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-         color: Colors.white,
-         borderRadius: BorderRadius.circular(12),
-         boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 5, offset: const Offset(0, 2)),
-         ],
-      ),
-      child: ListTile(
-        leading: Icon(icon, color: Colors.black87),
-        title: Text(title, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w500)),
-        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-        onTap: () {
-          // TODO: Implement settings
-        },
       ),
     );
   }

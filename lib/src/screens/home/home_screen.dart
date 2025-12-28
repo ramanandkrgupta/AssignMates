@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/notification_provider.dart';
 import '../../widgets/geometric_background.dart';
+import '../../widgets/animated_notification_icon.dart';
 import '../student/create_request_screen.dart';
 import '../student/request_history_screen.dart';
 import '../student/profile_screen.dart';
@@ -127,13 +129,18 @@ class _HomeContent extends ConsumerWidget {
                  ),
                  Row(
                    children: [
-                     IconButton(
-                       icon: const Icon(Icons.notifications_outlined, size: 28, color: Colors.black),
-                       onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationScreen()));
+                     Consumer(
+                       builder: (context, ref, child) {
+                         final unreadCount = ref.watch(unreadNotificationsCountProvider).value ?? 0;
+                         return AnimatedNotificationIcon(
+                           unreadCount: unreadCount,
+                           onTap: () {
+                              Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationScreen()));
+                           },
+                         );
                        },
                      ),
-                     const SizedBox(width: 12),
+                     const SizedBox(width: 16),
                      CircleAvatar(
                        radius: 24,
                        backgroundColor: Colors.grey[200],

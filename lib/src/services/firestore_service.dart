@@ -4,6 +4,7 @@ import '../models/user_model.dart';
 import '../models/request_model.dart';
 import '../models/notification_model.dart';
 import '../models/pricing_model.dart';
+import '../models/enquiry_model.dart';
 import '../models/payment_model.dart';
 import '../models/timeline_step.dart';
 
@@ -21,6 +22,9 @@ class FirestoreService {
   final FirebaseFirestore _db;
 
   FirestoreService(this._db);
+
+  CollectionReference get requestsCollection => _db.collection('requests');
+  CollectionReference get enquiriesCollection => _db.collection('enquiries');
 
   Future<void> createUser(AppUser user) async {
     await _db.collection('users').doc(user.uid).set(user.toMap());
@@ -150,11 +154,16 @@ class FirestoreService {
     await docRef.set(notification.toMap());
   }
 
-  Stream<List<NotificationModel>> getNotificationsStream(String userId) {
-    // We listen for notifications where targetUserId is 'admin' or matches the specific user
+  Stream<List<NotificationModel>> getNotificationsStream(String userId, {bool showAdminNotifications = false}) {
+    // Determine the list of targeted user IDs to filter by
+    final targetIds = [userId];
+    if (showAdminNotifications) {
+      targetIds.add('admin');
+    }
+
     return _db
         .collection('notifications')
-        .where('targetUserId', whereIn: [userId, 'admin'])
+        .where('targetUserId', whereIn: targetIds)
         .snapshots()
         .map((snapshot) {
       final notifs = snapshot.docs.map((doc) => NotificationModel.fromMap(doc.data())).toList();
@@ -165,6 +174,22 @@ class FirestoreService {
 
   Future<void> markNotificationAsRead(String notificationId) async {
     await _db.collection('notifications').doc(notificationId).update({'isRead': true});
+  }
+
+  Future<void> markAllNotificationsAsRead(String userId) async {
+    final snapshot = await _db
+        .collection('notifications')
+        .where('targetUserId', isEqualTo: userId)
+        .where('isRead', isEqualTo: false)
+        .get();
+
+    if (snapshot.docs.isEmpty) return;
+
+    final batch = _db.batch();
+    for (var doc in snapshot.docs) {
+      batch.update(doc.reference, {'isRead': true});
+    }
+    await batch.commit();
   }
 
   Future<void> deleteNotification(String notificationId) async {
@@ -186,7 +211,7 @@ class FirestoreService {
       if (snapshot.docs.isNotEmpty) {
         return PricingModel.fromMap(snapshot.docs.first.data());
       }
-      
+
       // 2. Fetch default
       final defaultSnapshot = await _db.collection('pricing').doc('default').get();
       if (defaultSnapshot.exists) {
@@ -229,7 +254,7 @@ class FirestoreService {
       'status': step.status,
     });
   }
-  
+
   Future<void> updateRequestStatusWithStep(String requestId, String status, TimelineStep step, {Map<String, dynamic>? additionalData}) async {
     final data = <String, dynamic>{
       'status': status,
@@ -239,6 +264,40 @@ class FirestoreService {
       data.addAll(additionalData);
     }
     await _db.collection('requests').doc(requestId).update(data);
+  }
+
+  // --- Enquiry Methods ---
+
+  Future<void> submitEnquiry(EnquiryModel enquiry) async {
+    await _db.collection('enquiries').doc(enquiry.id).set(enquiry.toMap());
+  }
+
+  Stream<List<EnquiryModel>> getEnquiriesStream() {
+    return _db.collection('enquiries')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => EnquiryModel.fromMap(doc.data())).toList();
+    });
+  }
+
+  Future<void> resolveEnquiry(String id) async {
+    await _db.collection('enquiries').doc(id).update({'isResolved': true});
+  }
+
+  // --- Community Links Methods ---
+
+  Future<void> updateCommunityLinks(Map<String, String> links) async {
+    await _db.collection('settings').doc('community_links').set(links);
+  }
+
+  Stream<Map<String, String>> getCommunityLinksStream() {
+    return _db.collection('settings').doc('community_links').snapshots().map((snapshot) {
+      if (snapshot.exists) {
+        return Map<String, String>.from(snapshot.data()!);
+      }
+      return {};
+    });
   }
 }
 

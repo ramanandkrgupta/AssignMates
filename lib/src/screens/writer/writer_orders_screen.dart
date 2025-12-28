@@ -10,7 +10,9 @@ import '../../services/firestore_service.dart';
 import '../../services/cloudinary_service.dart';
 import '../../services/notification_service.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/notification_provider.dart';
 import '../../widgets/audio_player_widget.dart';
+import '../../widgets/animated_notification_icon.dart';
 import '../common/media_viewer_screen.dart';
 import '../common/notification_screen.dart';
 import '../../models/timeline_step.dart';
@@ -37,10 +39,6 @@ class _WriterOrdersScreenState extends ConsumerState<WriterOrdersScreen> {
         backgroundColor: Colors.black,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Color(0xFFFFAF00)),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationScreen())),
-          ),
           IconButton(
             icon: const Icon(Icons.phone, color: Color(0xFFFFAF00)),
             onPressed: () => _callAdmin(),
@@ -132,7 +130,7 @@ class _WriterOrdersScreenState extends ConsumerState<WriterOrdersScreen> {
                     child: ElevatedButton.icon(
                       onPressed: () async {
                          await ref.read(firestoreServiceProvider).updateRequestStatusWithStep(
-                           request.id, 
+                           request.id,
                            'in_progress',
                              TimelineStep(
                              status: 'in_progress',
@@ -299,9 +297,11 @@ class _WriterOrdersScreenState extends ConsumerState<WriterOrdersScreen> {
         TimelineStep(
           status: 'review_pending',
           title: 'Proof Submitted',
-          description: 'Writer uploaded verification photos',
+          description: request.isHalfPayment
+              ? 'Writer uploaded verification photos. Make remaining payment now for final steps.'
+              : 'Writer uploaded verification photos',
           timestamp: DateTime.now(),
-          notificationsSent: {'admin': false},
+          notificationsSent: {'admin': false, 'student': false},
         ),
         additionalData: {'verificationPhotos': uploadedUrls}
       );

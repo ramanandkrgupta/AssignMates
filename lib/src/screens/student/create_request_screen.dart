@@ -363,10 +363,11 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
        return;
     }
 
-    // Sync instructions if in List Mode
-    if (_isListMode) {
-      final points = _listControllers.map((c) => c.text.trim()).where((s) => s.isNotEmpty).toList();
-      _instructionsController.text = points.map((p) => '• $p').join('\n');
+    // Validate Instructions
+    final instructions = _instructionsController.text.trim();
+    if (instructions.isEmpty && !_isListMode) {
+       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please provide instructions for your order.')));
+       return;
     }
 
     setState(() => _isLoading = true);
@@ -374,6 +375,9 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     try {
       final cloudinaryService = cloudinaryServiceProvider;
       final firestoreService = ref.read(firestoreServiceProvider);
+
+      // Generate ID from Firestore to ensure uniqueness and order
+      final requestId = firestoreService.requestsCollection.doc().id;
 
       List<String> attachmentUrls = [];
       Map<String, String> mediaUrls = {}; // Supporting simplistic map for compatibility, but mainly relying on attachmentUrls
@@ -406,10 +410,17 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
          }
       }
 
+      // Sync instructions if in List Mode
+      String finalInstructions = instructions;
+      if (_isListMode) {
+        final points = _listControllers.map((c) => c.text.trim()).where((s) => s.isNotEmpty).toList();
+        finalInstructions = points.map((p) => '• $p').join('\n');
+      }
+
       final newRequest = RequestModel(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        id: requestId,
         studentId: user.uid,
-        instructions: _instructionsController.text.trim(),
+        instructions: finalInstructions,
         deadline: _deadline!,
         budget: 0.0,
         status: 'created',
@@ -445,7 +456,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
           title: 'New Order Received! 🚀',
           body: 'From $studentCity, $studentName created ${newRequest.pageCount} pages order',
           type: 'new_order',
-          payload: {'requestId': newRequest.id},
+          payload: {'requestId': requestId},
         );
 
 
@@ -455,7 +466,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
           title: 'Order Received! ✅',
           body: 'Your order is on the way! You will get a call in 10 minutes.',
           type: 'order_created',
-          payload: {'requestId': newRequest.id},
+          payload: {'requestId': requestId},
         );
 
         // 3. Switch to History Tab and close screen
@@ -514,7 +525,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
 
     // Fetch pricing if user is loaded and we haven't yet
     if (user != null && _currentPricing == null && !_isLoadingPricing) {
-       // Defer to next frame to avoid setState during build if needed, 
+       // Defer to next frame to avoid setState during build if needed,
        // but since _fetchPricing is async and starts with await (or check), it's fine usually.
        // However, scheduling it is safer.
        WidgetsBinding.instance.addPostFrameCallback((_) {

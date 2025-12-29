@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart'; // for kIsWeb
+import '../../utils/web_payment_helper.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -25,26 +27,43 @@ class RequestHistoryScreen extends ConsumerStatefulWidget {
 }
 
 class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
+  // Web Handler
+  WebPaymentHandler? _webPaymentHandler;
+  
+  // Mobile Instance
   late Razorpay _razorpay;
+  
   RequestModel? _pendingRequest;
   String? _pendingPaymentType;
 
   @override
   void initState() {
     super.initState();
-    _razorpay = Razorpay();
-    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
-    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
-    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    if (kIsWeb) {
+      _webPaymentHandler = WebPaymentHandler(
+        onSuccess: _handlePaymentSuccess,
+        onFailure: _handlePaymentError,
+        onExternalWallet: _handleExternalWallet,
+      );
+    } else {
+      _razorpay = Razorpay();
+      _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+      _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+      _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    }
   }
 
   @override
   void dispose() {
-    _razorpay.clear();
+    if (kIsWeb) {
+      _webPaymentHandler?.clear();
+    } else {
+      _razorpay.clear();
+    }
     super.dispose();
   }
 
-  void _handlePaymentSuccess(PaymentSuccessResponse response) async {
+  void _handlePaymentSuccess(dynamic response) async {
     if (_pendingRequest != null && _pendingPaymentType != null) {
       final firestoreService = ref.read(firestoreServiceProvider);
       final req = _pendingRequest!;
@@ -119,11 +138,11 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
     }
   }
 
-  void _handlePaymentError(PaymentFailureResponse response) {
+  void _handlePaymentError(dynamic response) {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment Failed: ${response.message}')));
   }
 
-  void _handleExternalWallet(ExternalWalletResponse response) {
+  void _handleExternalWallet(dynamic response) {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('External Wallet: ${response.walletName}')));
   }
 
@@ -181,9 +200,25 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
     };
 
     try {
-      _razorpay.open(options);
+      if (options['key'] == null || options['key'].toString().isEmpty) {
+        throw Exception('Razorpay API Key is missing');
+      }
+
+      if (kIsWeb) {
+        _webPaymentHandler?.openCheckout(options);
+      } else {
+        _razorpay.open(options);
+      }
     } catch (e) {
       debugPrint('Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open payment: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 

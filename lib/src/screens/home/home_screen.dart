@@ -71,7 +71,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             NavigationDestination(
               icon: Icon(Icons.history_outlined),
               selectedIcon: Icon(Icons.history),
-              label: 'History',
+              label: 'My Requests',
             ),
              NavigationDestination(
               icon: Icon(Icons.headset_mic_outlined),

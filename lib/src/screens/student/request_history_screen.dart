@@ -229,24 +229,101 @@ class _RequestHistoryScreenState extends ConsumerState<RequestHistoryScreen> {
   }
 
   Future<void> _cancelOrder(RequestModel request) async {
-  bool? confirm = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Cancel Order?', style: TextStyle(color: Colors.white)),
-      backgroundColor: const Color(0xFF1E1E1E),
-      content: const Text('Are you sure you want to cancel this order? This cannot be undone.', style: TextStyle(color: Colors.white70)),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No', style: TextStyle(color: Colors.white))),
-        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Yes, Cancel', style: TextStyle(color: Colors.red))),
-      ],
-    ),
-  );
+    String? selectedReason;
+    final otherReasonController = TextEditingController();
+    bool showOtherInput = false;
 
-  if (confirm == true) {
-     await ref.read(firestoreServiceProvider).updateRequest(request.id, {'status': 'cancelled'});
-     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order Cancelled')));
+    final reasons = [
+      'Found a better alternative',
+      'Changed my mind',
+      'Cost is too high',
+      'Duplicate request',
+      'Other',
+    ];
+
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Cancel Order?', style: TextStyle(color: Colors.white)),
+            backgroundColor: const Color(0xFF1E1E1E),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   const Text('Please select a reason for cancellation:', style: TextStyle(color: Colors.white70)),
+                   const SizedBox(height: 10),
+                   ...reasons.map((reason) => RadioListTile<String>(
+                      title: Text(reason, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                      value: reason,
+                      groupValue: selectedReason,
+                      activeColor: const Color(0xFFFFAF00),
+                      onChanged: (val) {
+                        setDialogState(() {
+                          selectedReason = val;
+                          showOtherInput = val == 'Other';
+                        });
+                      },
+                    )),
+                    if (showOtherInput)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: TextField(
+                          controller: otherReasonController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: const InputDecoration(
+                            hintText: 'Please specify reason...',
+                            hintStyle: TextStyle(color: Colors.white24),
+                            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFFAF00))),
+                          ),
+                        ),
+                      ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No', style: TextStyle(color: Colors.white))),
+              TextButton(
+                onPressed: selectedReason == null ? null : () {
+                   Navigator.pop(ctx, true);
+                },
+                child: Text('Yes, Cancel', style: TextStyle(color: selectedReason == null ? Colors.grey : Colors.red)),
+              ),
+            ],
+          );
+        }
+      ),
+    );
+
+    if (confirm == true && selectedReason != null) {
+      String finalReason = selectedReason!;
+      if (selectedReason == 'Other') {
+        finalReason = otherReasonController.text.trim();
+        if (finalReason.isEmpty) finalReason = 'Other';
+      }
+
+      await ref.read(firestoreServiceProvider).updateRequestStatusWithStep(
+        request.id, 
+        'cancelled', 
+        TimelineStep(
+          status: 'cancelled',
+          title: 'Order Cancelled',
+          description: 'Cancelled by you. Reason: $finalReason',
+          timestamp: DateTime.now(),
+          notificationsSent: {'student': true, 'admin': false},
+        ),
+        additionalData: {
+          'cancelledBy': 'user',
+          'cancellationReason': finalReason
+        }
+      );
+      
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Order Cancelled')));
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {

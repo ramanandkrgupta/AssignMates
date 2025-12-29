@@ -849,10 +849,20 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
                       if (finalReason.isEmpty) finalReason = 'Other';
                     }
 
-                    await ref.read(firestoreServiceProvider).updateRequestStatus(
+                    await ref.read(firestoreServiceProvider).updateRequestStatusWithStep(
                       req.id,
                       'cancelled',
-                      additionalData: {'cancellationReason': finalReason}
+                      TimelineStep(
+                        status: 'cancelled',
+                        title: 'Order Cancelled',
+                        description: 'Cancelled by Admin. Reason: $finalReason',
+                        timestamp: DateTime.now(),
+                        notificationsSent: {'student': false},
+                      ),
+                      additionalData: {
+                        'cancellationReason': finalReason,
+                        'cancelledBy': 'admin'
+                      }
                     );
 
                     if (context.mounted) {

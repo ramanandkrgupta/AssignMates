@@ -969,7 +969,7 @@ packages:
     source: hosted
     version: "1.4.0"
   razorpay_web:
-    dependency: "direct main"
+    dependency: "direct overridden"
     description:
       name: razorpay_web
       sha256: d6616a5c91ea18e7012e44914264970863797062d10fd8260c2fce1c20a6f557

@@ -161,6 +161,32 @@ class _HistoryCard extends ConsumerWidget {
                         _info('Paid', '₹${request.paidAmount.toStringAsFixed(0)}'),
                       ],
                     ),
+                    if (request.status == 'cancelled' && request.cancellationReason != null) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.red.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'CANCELLED BY: ${request.cancelledBy?.toUpperCase() ?? "UNKNOWN"}',
+                              style: GoogleFonts.outfit(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              request.cancellationReason!,
+                              style: GoogleFonts.outfit(color: Colors.white, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (request.attachmentUrls.isNotEmpty) ...[
                       const SizedBox(height: 16),
                       Text('Attachments:', style: GoogleFonts.outfit(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
